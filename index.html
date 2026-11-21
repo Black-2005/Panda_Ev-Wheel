@@ -176,8 +176,8 @@ h3{margin:6px 0 0;font-size:15px}
   textarea#entries{min-height:220px}
 }
 @media (max-width:420px){
-  header{padding:10px 12px}
-  main{padding:0 12px 12px}
+  header{padding:10px 16px}
+  main{padding:0 16px 16px}
   .ibtn{width:36px;height:36px}
 }
 </style>
@@ -756,13 +756,26 @@ $('#hCopy').onclick = async () => {
   const txt = state.history.slice().reverse().map((x, i) => `${i + 1}. ${x.text}`).join('\n');
   try { await navigator.clipboard.writeText(txt); toast('คัดลอกผลแล้ว'); } catch { prompt('คัดลอกข้อความนี้', txt); }
 };
-$('#hCsv').onclick = () => {
+let dlApi;
+if (window.claude && window.claude.use) {
+  $('#btnShare').style.display = 'none'; // hosted view: share via the page's own Share menu
+  dlApi = window.claude.use('downloads').catch(() => null);
+}
+$('#hCsv').onclick = async () => {
   if (!state.history.length) return toast('ยังไม่มีผล');
   const rows = [['ลำดับ', 'ผล', 'เวลา']].concat(state.history.slice().reverse().map((x, i) => [i + 1, x.text, new Date(x.t).toLocaleString('th-TH')]));
   const csv = '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const fname = (state.title || 'wheel').replace(/[\\/:*?"<>|]/g, '') + '-results.csv';
+  if (dlApi) {
+    const d = await dlApi;
+    if (!d) return toast('ดาวน์โหลดไม่ได้ในหน้านี้ ใช้ “คัดลอกผล” แทน');
+    try { await d.save({ filename: fname, data: csv }); toast('บันทึกไฟล์แล้ว'); }
+    catch (err) { if (err && err.code !== 'declined') toast('ดาวน์โหลดไม่สำเร็จ ใช้ “คัดลอกผล” แทน'); }
+    return;
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = (state.title || 'wheel') + '-results.csv'; a.click();
+  a.download = fname; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 $('#hClear').onclick = () => { if (state.history.length && confirm('ล้างประวัติทั้งหมด?')) { state.history = []; store.set('pw.history', []); renderHistory(); } };
