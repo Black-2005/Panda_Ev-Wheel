@@ -172,6 +172,7 @@ h3{margin:6px 0 0;font-size:15px}
 .share-box input{flex:1;min-width:0;border:1px solid var(--border);background:var(--field);border-radius:10px;padding:8px 10px;font-size:13px}
 #qr{background:#fff;padding:10px;border-radius:14px;width:max-content;margin:0 auto 14px}
 #qr img,#qr canvas{display:block;width:180px;height:180px}
+.share-label{font-size:13px;font-weight:600;text-align:left;margin-top:4px}
 .share-desc{font-size:14px;color:var(--muted);line-height:1.7;margin:6px 0 12px;text-align:left}
 .share-desc b{color:var(--text)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -304,8 +305,13 @@ h3{margin:6px 0 0;font-size:15px}
   <div class="card">
     <div class="label" id="shTitle">🔗 แชร์วงล้อนี้</div>
     <div class="share-desc" id="shareDesc"></div>
-    <div class="share-box" id="shLinkBox"><input id="shUrl" readonly aria-label="ลิงก์แชร์"><button class="btn primary" id="shCopy">คัดลอก</button></div>
+    <div class="share-label" id="shLabel1" hidden>🌐 ลิงก์สำหรับทุกคน (ไม่ต้องมีบัญชี)</div>
+    <div class="share-box" id="shLinkBox"><input id="shUrl" readonly aria-label="ลิงก์แชร์" onfocus="this.select()"><button class="btn primary" id="shCopy">คัดลอก</button></div>
     <div id="qr" hidden></div>
+    <div id="shBox2" hidden>
+      <div class="share-label">💜 ลิงก์ Claude (เปิดได้เฉพาะคนที่คุณแชร์สิทธิ์ให้ผ่านปุ่ม Share ของ Claude)</div>
+      <div class="share-box"><input id="shUrl2" readonly aria-label="ลิงก์ Claude" onfocus="this.select()"><button class="btn" id="shCopy2">คัดลอก</button></div>
+    </div>
     <div class="actions">
       <button class="btn" id="shClose">ปิด</button>
       <button class="btn" id="shNative" hidden>📤 ส่งต่อ…</button>
@@ -376,6 +382,8 @@ let logo = store.get('pw.logo', null);
 
 // Hosted on claude.ai (artifact) vs. standalone (GitHub Pages / local file)
 const IS_HOSTED = !!(window.claude && window.claude.use);
+const PAGES_URL = 'https://black-2005.github.io/Panda_Ev-Wheel/';
+const ARTIFACT_URL = 'https://claude.ai/artifact/NsNYm17Y1cqFxRVSzHCqPC';
 
 /* ---------- wheel <-> link encoding (?w=...) ---------- */
 const b64enc = bytes => { let bin = ''; for (const b of bytes) bin += String.fromCharCode(b); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -912,17 +920,22 @@ async function openShare() {
     renderQR(url);
     return;
   }
-  $('#shLinkBox').hidden = true; $('#qr').hidden = true; $('#shNative').hidden = true; $('#shPublish').hidden = true;
-  desc.textContent = 'กำลังตรวจสอบสิทธิ์…';
+  // Hosted on claude.ai: the page can't read its own address, so offer the known public copy (GitHub Pages) with the wheel data in the link
+  const pagesUrl = PAGES_URL + '?w=' + await encodeWheel(wheelPayload());
+  $('#shLabel1').hidden = false; $('#shLinkBox').hidden = false; $('#shUrl').value = pagesUrl;
+  $('#shBox2').hidden = false; $('#shUrl2').value = ARTIFACT_URL;
+  $('#shNative').hidden = !navigator.share; $('#shPublish').hidden = true;
+  renderQR(pagesUrl);
+  desc.textContent = 'กำลังบันทึก…';
   await hostedInit;
   if (canPublish) {
     $('#shPublish').hidden = false;
     clearTimeout(presetTimer);
     const ok = await savePreset(true);
     desc.innerHTML = (ok
-      ? `✅ <b>บันทึกวงล้อนี้ให้ทุกคนแล้ว</b> (รายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่า)`
+      ? `✅ <b>บันทึกแล้ว</b> — รายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่า`
       : `⚠️ <b>ยังบันทึกไม่สำเร็จ</b> ลองกดปุ่มบันทึกด้านล่างอีกครั้ง`) +
-      `<br><b>ขั้นต่อไป:</b> เปิดลิงก์วงล้อนี้ในเว็บเบราว์เซอร์ที่ claude.ai แล้วกดปุ่ม <b>Share</b> ที่แถบด้านบนของหน้า (นอกกรอบวงล้อ) เพื่อเปิดสิทธิ์และคัดลอกลิงก์ส่งให้คนอื่น — ทุกคนที่เปิดจะเห็นวงล้อชุดนี้พร้อมหมุนทันที<br><span style="font-size:13px">ถ้าไม่เห็นปุ่ม Share (เช่น เปิดในแอปมือถือ) ให้ใช้ลิงก์ GitHub Pages แทน · เมื่อคุณแก้รายการ ระบบจะบันทึกให้อัตโนมัติ</span>`;
+      `<br>คัดลอก <b>ลิงก์สำหรับทุกคน</b> ด้านล่างไปส่งได้เลย หรือให้สแกน QR — คนที่เปิดจะได้วงล้อชุดนี้พร้อมหมุนทันที`;
   } else {
     desc.innerHTML = 'เฉพาะผู้สร้างวงล้อเท่านั้นที่บันทึกชุดรายการให้ทุกคนได้ · รายการที่คุณแก้จะถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง';
   }
@@ -933,11 +946,14 @@ $('#tShare').onclick = openShare;
 $('#stShare').onclick = openShare;
 $('#shClose').onclick = closeShare;
 shareModal.addEventListener('click', e => { if (e.target === shareModal) closeShare(); });
-$('#shCopy').onclick = async () => {
-  const inp = $('#shUrl');
-  try { await navigator.clipboard.writeText(inp.value); toast('คัดลอกลิงก์แล้ว 🔗'); }
-  catch { inp.select(); try { document.execCommand('copy'); toast('คัดลอกลิงก์แล้ว 🔗'); } catch { toast('กดค้างที่ลิงก์เพื่อคัดลอก'); } }
-};
+async function copyFrom(inp) {
+  try { await navigator.clipboard.writeText(inp.value); toast('คัดลอกลิงก์แล้ว 🔗'); return; } catch {}
+  inp.focus(); inp.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch {}
+  toast(ok ? 'คัดลอกลิงก์แล้ว 🔗' : 'เลือกลิงก์ไว้แล้ว — กด Ctrl+C หรือกดค้างเพื่อคัดลอก');
+}
+$('#shCopy').onclick = () => copyFrom($('#shUrl'));
+$('#shCopy2').onclick = () => copyFrom($('#shUrl2'));
 $('#shNative').onclick = () => navigator.share({ title: state.title, text: 'มาหมุนวงล้อกัน! 🎡', url: $('#shUrl').value }).catch(() => {});
 
 /* ---------- creator preset (claude.ai hosted view) ---------- */
