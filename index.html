@@ -167,6 +167,13 @@ h3{margin:6px 0 0;font-size:15px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,30px);opacity:0;background:var(--text);color:var(--bg);
   padding:10px 18px;border-radius:12px;z-index:70;transition:.25s;font-size:14px;max-width:calc(100% - 32px);text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
+[hidden]{display:none!important}
+.share-box{display:flex;gap:6px;margin:4px 0 12px}
+.share-box input{flex:1;min-width:0;border:1px solid var(--border);background:var(--field);border-radius:10px;padding:8px 10px;font-size:13px}
+#qr{background:#fff;padding:10px;border-radius:14px;width:max-content;margin:0 auto 14px}
+#qr img,#qr canvas{display:block;width:180px;height:180px}
+.share-desc{font-size:14px;color:var(--muted);line-height:1.7;margin:6px 0 12px;text-align:left}
+.share-desc b{color:var(--text)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
 @media (max-width:900px){
@@ -230,6 +237,8 @@ h3{margin:6px 0 0;font-size:15px}
           <button class="btn" id="tDedupe">🧹 ลบซ้ำ</button>
           <button class="btn" id="tImport">📂 นำเข้า</button>
           <button class="btn danger" id="tClear">🗑️ ล้าง</button>
+          <button class="btn" id="tPreset" hidden>↺ ชุดของผู้สร้าง</button>
+          <button class="btn primary" id="tShare">🔗 แชร์วงล้อนี้</button>
           <input type="file" id="fileImport" accept=".txt,.csv,text/plain,text/csv" hidden>
         </div>
         <div class="small">
@@ -287,6 +296,19 @@ h3{margin:6px 0 0;font-size:15px}
       <button class="btn" id="mClose">ปิด</button>
       <button class="btn danger" id="mRemove">ลบออกจากวงล้อ</button>
       <button class="btn primary" id="mAgain">หมุนอีกครั้ง</button>
+    </div>
+  </div>
+</div>
+<div class="modal" id="shareModal" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+  <div class="card">
+    <div class="label" id="shTitle">🔗 แชร์วงล้อนี้</div>
+    <div class="share-desc" id="shareDesc"></div>
+    <div class="share-box" id="shLinkBox"><input id="shUrl" readonly aria-label="ลิงก์แชร์"><button class="btn primary" id="shCopy">คัดลอก</button></div>
+    <div id="qr" hidden></div>
+    <div class="actions">
+      <button class="btn" id="shClose">ปิด</button>
+      <button class="btn" id="shNative" hidden>📤 ส่งต่อ…</button>
+      <button class="btn primary" id="shPublish" hidden>💾 บันทึกให้ทุกคนที่เปิดลิงก์</button>
     </div>
   </div>
 </div>
@@ -695,6 +717,7 @@ $('#hub').onclick = () => spin();
 document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   const typing = tag === 'textarea' || (tag === 'input' && !['checkbox', 'range'].includes(e.target.type)) || tag === 'select';
+  if (shareModal.classList.contains('open')) { if (e.key === 'Escape') closeShare(); return; }
   if (e.key === 'Escape' && modal.classList.contains('open')) { closeModal(); return; }
   if (typing) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); spin(); } return; }
   if ((e.code === 'Space' || e.key === 'Enter') && !(tag === 'button' && e.key === 'Enter')) { e.preventDefault(); if (modal.classList.contains('open')) { closeModal(true); } spin(); }
@@ -756,10 +779,13 @@ $('#hCopy').onclick = async () => {
   const txt = state.history.slice().reverse().map((x, i) => `${i + 1}. ${x.text}`).join('\n');
   try { await navigator.clipboard.writeText(txt); toast('คัดลอกผลแล้ว'); } catch { prompt('คัดลอกข้อความนี้', txt); }
 };
-let dlApi;
-if (window.claude && window.claude.use) {
-  $('#btnShare').style.display = 'none'; // hosted view: share via the page's own Share menu
+// Hosted on claude.ai (artifact) vs. standalone (GitHub Pages / local file)
+const hosted = !!(window.claude && window.claude.use);
+let dlApi, dbApi, userApi;
+if (hosted) {
   dlApi = window.claude.use('downloads').catch(() => null);
+  dbApi = window.claude.use('db').catch(() => null);
+  userApi = window.claude.use('user').catch(() => null);
 }
 $('#hCsv').onclick = async () => {
   if (!state.history.length) return toast('ยังไม่มีผล');
@@ -827,14 +853,106 @@ titleEl.oninput = () => { state.title = titleEl.value; document.title = state.ti
 titleEl.onkeydown = e => { if (e.key === 'Enter') titleEl.blur(); };
 
 /* ---------- share ---------- */
-$('#btnShare').onclick = async () => {
+const shareModal = $('#shareModal');
+function buildShareUrl() {
   const data = JSON.stringify({ t: state.title, e: state.raw, s: S });
   const bytes = new TextEncoder().encode(data);
   let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
   const b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const url = location.origin + location.pathname + '#w=' + b64;
-  try { await navigator.clipboard.writeText(url); toast('คัดลอกลิงก์แชร์แล้ว 🔗'); }
-  catch { prompt('คัดลอกลิงก์นี้', url); }
+  return location.origin + location.pathname + '#w=' + b64;
+}
+let qrLib;
+function loadQR() {
+  if (!qrLib) qrLib = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    s.onload = () => window.QRCode ? res(window.QRCode) : rej(); s.onerror = () => { qrLib = null; rej(); };
+    document.head.appendChild(s);
+  });
+  return qrLib;
+}
+async function renderQR(url) {
+  const box = $('#qr'); box.innerHTML = ''; box.hidden = true;
+  try {
+    const Q = await loadQR();
+    new Q(box, { text: url, width: 360, height: 360, correctLevel: Q.CorrectLevel.L });
+    box.hidden = false;
+  } catch { box.hidden = true; } // link too long for a QR code, or offline
+}
+async function openShare() {
+  closeModal(true);
+  shareModal.classList.add('open');
+  const desc = $('#shareDesc');
+  if (!hosted) {
+    const url = buildShareUrl();
+    $('#shLinkBox').hidden = false; $('#shPublish').hidden = true;
+    $('#shNative').hidden = !navigator.share;
+    $('#shUrl').value = url;
+    desc.innerHTML = `ลิงก์นี้รวม <b>รายการ ${entries.length} ช่อง</b> ชื่อวงล้อ และการตั้งค่าไว้แล้ว — คนที่เปิดจะได้วงล้อแบบเดียวกับคุณ <b>พร้อมหมุนทันที</b> หรือให้สแกน QR ด้านล่าง`;
+    renderQR(url);
+    return;
+  }
+  $('#shLinkBox').hidden = true; $('#qr').hidden = true; $('#shNative').hidden = true; $('#shPublish').hidden = true;
+  desc.textContent = 'กำลังตรวจสอบสิทธิ์…';
+  const [u, db] = await Promise.all([userApi, dbApi]);
+  const can = u ? await u.canEdit().catch(() => false) : false;
+  if (can && db) {
+    $('#shPublish').hidden = false;
+    desc.innerHTML = `<b>1.</b> กด <b>บันทึกให้ทุกคนที่เปิดลิงก์</b> เพื่อเก็บรายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่าตอนนี้<br><b>2.</b> กดปุ่ม <b>Share</b> ด้านบนของหน้านี้ แล้วส่งลิงก์ให้คนอื่น — ทุกคนที่เปิดจะเห็นวงล้อชุดนี้พร้อมหมุนทันที<br><span style="font-size:13px">แก้ไขแล้วกดบันทึกซ้ำได้ทุกเมื่อ คนที่เปิดครั้งถัดไปจะได้ชุดใหม่</span>`;
+  } else {
+    desc.innerHTML = 'เฉพาะผู้สร้างวงล้อเท่านั้นที่บันทึกชุดรายการให้ทุกคนได้ · รายการที่คุณแก้จะถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง';
+  }
+}
+function closeShare() { shareModal.classList.remove('open'); }
+$('#btnShare').onclick = openShare;
+$('#tShare').onclick = openShare;
+$('#shClose').onclick = closeShare;
+shareModal.addEventListener('click', e => { if (e.target === shareModal) closeShare(); });
+$('#shCopy').onclick = async () => {
+  const inp = $('#shUrl');
+  try { await navigator.clipboard.writeText(inp.value); toast('คัดลอกลิงก์แล้ว 🔗'); }
+  catch { inp.select(); try { document.execCommand('copy'); toast('คัดลอกลิงก์แล้ว 🔗'); } catch { toast('กดค้างที่ลิงก์เพื่อคัดลอก'); } }
+};
+$('#shNative').onclick = () => navigator.share({ title: state.title, text: 'มาหมุนวงล้อกัน! 🎡', url: $('#shUrl').value }).catch(() => {});
+
+/* ---------- creator preset (claude.ai hosted view) ---------- */
+let presetData = null;
+function syncSettingsUI() {
+  ['autoRemove', 'popup', 'confetti', 'sound', 'lights'].forEach(k => { $('#s' + k[0].toUpperCase() + k.slice(1)).checked = !!S[k]; });
+  dur.value = S.duration; $('#durLabel').textContent = S.duration + ' วินาที'; vol.value = S.volume;
+  renderPalettes(); updateSoundBtn();
+}
+function applyPreset(d) {
+  if (spinning || !d) return;
+  if (typeof d.title === 'string') { state.title = d.title.slice(0, 80); titleEl.value = state.title; document.title = state.title || 'Panda EV Wheel'; store.set('pw.title', state.title); }
+  if (d.settings && typeof d.settings === 'object') { Object.assign(S, DEFAULT_SETTINGS, d.settings); saveSettings(); syncSettingsUI(); }
+  highlight = -1;
+  if (typeof d.raw === 'string') setRaw(d.raw); else { parseEntries(); renderWheel(); draw(); }
+}
+async function loadPreset() {
+  const db = await dbApi; if (!db) return;
+  let snap;
+  try { snap = await Promise.race([db.doc('config/preset').get(), new Promise((_, rej) => setTimeout(rej, 10000))]); } catch { return; }
+  if (!snap || !snap.exists) return;
+  presetData = snap.data();
+  $('#tPreset').hidden = false;
+  if (presetData.v && presetData.v !== store.get('pw.presetV', null)) {
+    applyPreset(presetData); store.set('pw.presetV', presetData.v);
+    toast('โหลดวงล้อที่ผู้สร้างตั้งไว้แล้ว 🎡');
+  }
+}
+$('#tPreset').onclick = () => { if (presetData) { applyPreset(presetData); toast('กลับไปใช้ชุดของผู้สร้างแล้ว'); } };
+$('#shPublish').onclick = async () => {
+  const db = await dbApi, btn = $('#shPublish');
+  if (!db) return toast('บันทึกไม่ได้ในหน้านี้');
+  btn.disabled = true;
+  const data = { title: state.title, raw: state.raw, settings: Object.assign({}, S), v: Date.now() };
+  try {
+    await db.doc('config/preset').set(data);
+    presetData = data; store.set('pw.presetV', data.v); $('#tPreset').hidden = false;
+    toast('บันทึกแล้ว ✓ กด Share ด้านบนเพื่อส่งลิงก์ได้เลย');
+  } catch (e) { toast('บันทึกไม่สำเร็จ' + (e && e.code ? ` (${e.code})` : '')); }
+  finally { btn.disabled = false; }
 };
 
 /* ---------- focus / fullscreen ---------- */
@@ -877,6 +995,7 @@ parseEntries(); renderHistory();
 new ResizeObserver(resize).observe(canvas);
 resize();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { renderWheel(); draw(); });
+if (hosted) loadPreset();
 window.addEventListener('resize', () => { if (cc.width) { cc.width = innerWidth * dpr; cc.height = innerHeight * dpr; } });
 })();
 </script>
