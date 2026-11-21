@@ -114,6 +114,7 @@ textarea#entries:focus,select:focus,input:focus-visible{outline:2px solid var(--
   display:inline-flex;align-items:center;gap:6px;transition:border-color .2s,background .2s;
 }
 .btn:hover{border-color:var(--accent)}
+a.btn{text-decoration:none;color:inherit}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .btn.danger{color:var(--danger)}
 .btn.big{padding:12px 28px;font-size:18px;font-weight:600;border-radius:14px}
@@ -305,6 +306,15 @@ h3{margin:6px 0 0;font-size:15px}
   <div class="card">
     <div class="label" id="shTitle">🔗 แชร์วงล้อนี้</div>
     <div class="share-desc" id="shareDesc"></div>
+    <div class="share-desc" id="shLong" hidden>
+      <b>รายการยาวเกินกว่าจะใส่ในลิงก์</b> (แอปแชทจะตัดข้อมูลหาย) — ทำตามนี้ครั้งเดียว แล้วส่งลิงก์สั้นได้เลย:
+      <ol style="margin:6px 0 0;padding-left:22px;display:flex;flex-direction:column;gap:6px">
+        <li><button class="btn" id="shCopyList">📋 คัดลอกรายการ</button></li>
+        <li><a class="btn" id="shEditGh" target="_blank" rel="noopener">✏️ เปิดไฟล์ wheel.txt บน GitHub</a><br>
+          ลบข้อความเดิมทั้งหมด วางรายการที่คัดลอก แล้วกด <b>Commit changes</b></li>
+        <li>รอ 1–2 นาที แล้วส่ง <b>ลิงก์สั้น</b> ด้านล่าง — คนที่เปิดจะได้รายการนี้ทันที</li>
+      </ol>
+    </div>
     <div class="share-label" id="shLabel1" hidden>🌐 ลิงก์สำหรับทุกคน (ไม่ต้องมีบัญชี)</div>
     <div class="share-box" id="shLinkBox"><input id="shUrl" readonly aria-label="ลิงก์แชร์" onfocus="this.select()"><button class="btn primary" id="shCopy">คัดลอก</button></div>
     <div id="qr" hidden></div>
@@ -384,6 +394,8 @@ let logo = store.get('pw.logo', null);
 const IS_HOSTED = !!(window.claude && window.claude.use);
 const PAGES_URL = 'https://black-2005.github.io/Panda_Ev-Wheel/';
 const ARTIFACT_URL = 'https://claude.ai/artifact/NsNYm17Y1cqFxRVSzHCqPC';
+const GH_EDIT_URL = 'https://github.com/Black-2005/Panda_Ev-Wheel/edit/main/wheel.txt';
+const MAX_LINK = 1800; // longer links get cut by chat apps and don't fit in a QR code
 
 /* ---------- wheel <-> link encoding (?w=...) ---------- */
 const b64enc = bytes => { let bin = ''; for (const b of bytes) bin += String.fromCharCode(b); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
@@ -882,7 +894,11 @@ function onWheelChanged() {
     if (!urlReady) return;
     clearTimeout(urlTimer);
     urlTimer = setTimeout(async () => {
-      try { history.replaceState(null, '', location.pathname + '?w=' + await encodeWheel(wheelPayload())); } catch {}
+      try {
+        const code = await encodeWheel(wheelPayload());
+        // a very long list would make an unusable address; keep the address clean instead
+        history.replaceState(null, '', location.pathname + (code.length + 60 <= MAX_LINK ? '?w=' + code : ''));
+      } catch {}
     }, 400);
   } else if (presetReady && canPublish) {
     clearTimeout(presetTimer);
@@ -911,21 +927,23 @@ async function openShare() {
   closeModal(true);
   shareModal.classList.add('open');
   const desc = $('#shareDesc');
+  // Hosted on claude.ai the page can't read its own address, so it offers the public copy (GitHub Pages)
+  const base = hosted || location.protocol === 'file:' ? PAGES_URL : location.origin + location.pathname;
+  const fullUrl = base + '?w=' + await encodeWheel(wheelPayload());
+  const long = fullUrl.length > MAX_LINK;
+  const url = long ? base : fullUrl;
+  $('#shLong').hidden = !long;
+  $('#shLabel1').hidden = false;
+  $('#shLabel1').textContent = long ? '🔗 ลิงก์สั้น (ส่งหลังทำขั้นตอนด้านบนแล้ว)' : '🌐 ลิงก์สำหรับทุกคน (ไม่ต้องมีบัญชี)';
+  $('#shLinkBox').hidden = false; $('#shUrl').value = url;
+  $('#shNative').hidden = !navigator.share; $('#shPublish').hidden = true;
+  $('#shBox2').hidden = !hosted; $('#shUrl2').value = ARTIFACT_URL;
+  renderQR(url);
+  const linkMsg = long ? '' : `<br>คัดลอก <b>ลิงก์สำหรับทุกคน</b> ด้านล่างไปส่งได้เลย หรือให้สแกน QR — คนที่เปิดจะได้วงล้อชุดนี้ <b>พร้อมหมุนทันที</b>`;
   if (!hosted) {
-    const url = await buildShareUrl();
-    $('#shLinkBox').hidden = false; $('#shPublish').hidden = true;
-    $('#shNative').hidden = !navigator.share;
-    $('#shUrl').value = url;
-    desc.innerHTML = `ลิงก์นี้รวม <b>รายการ ${entries.length} ช่อง</b> ชื่อวงล้อ และการตั้งค่าไว้แล้ว — คนที่เปิดจะได้วงล้อแบบเดียวกับคุณ <b>พร้อมหมุนทันที</b> หรือให้สแกน QR ด้านล่าง`;
-    renderQR(url);
+    desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
     return;
   }
-  // Hosted on claude.ai: the page can't read its own address, so offer the known public copy (GitHub Pages) with the wheel data in the link
-  const pagesUrl = PAGES_URL + '?w=' + await encodeWheel(wheelPayload());
-  $('#shLabel1').hidden = false; $('#shLinkBox').hidden = false; $('#shUrl').value = pagesUrl;
-  $('#shBox2').hidden = false; $('#shUrl2').value = ARTIFACT_URL;
-  $('#shNative').hidden = !navigator.share; $('#shPublish').hidden = true;
-  renderQR(pagesUrl);
   desc.textContent = 'กำลังบันทึก…';
   await hostedInit;
   if (canPublish) {
@@ -934,12 +952,21 @@ async function openShare() {
     const ok = await savePreset(true);
     desc.innerHTML = (ok
       ? `✅ <b>บันทึกแล้ว</b> — รายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่า`
-      : `⚠️ <b>ยังบันทึกไม่สำเร็จ</b> ลองกดปุ่มบันทึกด้านล่างอีกครั้ง`) +
-      `<br>คัดลอก <b>ลิงก์สำหรับทุกคน</b> ด้านล่างไปส่งได้เลย หรือให้สแกน QR — คนที่เปิดจะได้วงล้อชุดนี้พร้อมหมุนทันที`;
+      : `⚠️ <b>ยังบันทึกไม่สำเร็จ</b> ลองกดปุ่มบันทึกด้านล่างอีกครั้ง`) + linkMsg;
   } else {
-    desc.innerHTML = 'เฉพาะผู้สร้างวงล้อเท่านั้นที่บันทึกชุดรายการให้ทุกคนได้ · รายการที่คุณแก้จะถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง';
+    desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
   }
 }
+$('#shEditGh').href = GH_EDIT_URL;
+$('#shCopyList').onclick = async () => {
+  const text = `ชื่อวงล้อ: ${state.title}\n` + state.raw.split(/\r?\n/).filter(l => l.trim()).join('\n') + '\n';
+  try { await navigator.clipboard.writeText(text); toast(`คัดลอกรายการ ${entries.length} ช่องแล้ว 📋`); return; } catch {}
+  const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+  document.body.appendChild(t); t.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch {}
+  t.remove();
+  toast(ok ? `คัดลอกรายการ ${entries.length} ช่องแล้ว 📋` : 'คัดลอกไม่ได้ — ให้คัดลอกจากช่องรายการแทน');
+};
 function closeShare() { shareModal.classList.remove('open'); }
 $('#btnShare').onclick = openShare;
 $('#tShare').onclick = openShare;
@@ -1023,7 +1050,35 @@ async function initStandalone() {
       toast('โหลดวงล้อจากลิงก์แชร์แล้ว 🎡');
     } catch { toast('ลิงก์แชร์ไม่สมบูรณ์ — ลองคัดลอกลิงก์ใหม่อีกครั้ง'); }
   }
+  else await loadWheelFile();
   urlReady = true; onWheelChanged();
+}
+/* wheel.txt (or lists/<name>.txt via ?l=name) published with the site: lets a long list travel behind a short link */
+function parseWheelFile(text) {
+  let title = null;
+  const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => {
+    const m = l.match(/^\s*(?:ชื่อวงล้อ|title)\s*:\s*(.*)$/i);
+    if (m && title === null) { title = m[1].trim(); return false; }
+    return true;
+  });
+  return { title, raw: lines.join('\n').trim() };
+}
+async function loadWheelFile() {
+  const name = new URLSearchParams(location.search).get('l');
+  const path = name && /^[\w\-]{1,60}$/.test(name) ? `lists/${name}.txt` : 'wheel.txt';
+  let text;
+  try {
+    const r = await fetch(path + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    text = await r.text();
+  } catch { return; }
+  const d = parseWheelFile(text);
+  if (!d.raw.split('\n').some(l => l.trim() && !l.trim().startsWith('#'))) return; // no entries in the file
+  const key = path + ':' + text.length + ':' + Array.from(text).reduce((h, c) => (h * 31 + c.codePointAt(0)) | 0, 7);
+  if (!name && key === store.get('pw.fileKey', null)) return; // already applied; keep this viewer's own edits
+  applyPreset({ title: d.title || undefined, raw: d.raw });
+  store.set('pw.fileKey', key);
+  toast('โหลดรายการของวงล้อนี้แล้ว 🎡');
 }
 
 /* ---------- focus / fullscreen ---------- */
