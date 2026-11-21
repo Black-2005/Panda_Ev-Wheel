@@ -322,6 +322,8 @@ h3{margin:6px 0 0;font-size:15px}
     </div>
     <div class="actions">
       <button class="btn" id="shClose">ปิด</button>
+      <button class="btn primary" id="shShort">✂️ ย่อลิงก์</button>
+      <a class="btn" id="shIsgd" target="_blank" rel="noopener" hidden>เปิด is.gd เพื่อย่อ</a>
       <button class="btn" id="shNative" hidden>📤 ส่งต่อ…</button>
       <button class="btn primary" id="shPublish" hidden>💾 บันทึกให้ทุกคนที่เปิดลิงก์</button>
     </div>
@@ -955,8 +957,10 @@ async function openShare() {
   const desc = $('#shareDesc');
   // Hosted on claude.ai the page can't read its own address, so it offers the public copy (GitHub Pages)
   const base = hosted || location.protocol === 'file:' ? PAGES_URL : location.origin + location.pathname;
-  const url = base + '?w=' + await encodeWheel(wheelPayload());
+  const longUrl = base + '?w=' + await encodeWheel(wheelPayload());
+  const url = shortCache[longUrl] || longUrl;
   $('#shUrl').value = url;
+  $('#shShort').hidden = url !== longUrl; $('#shIsgd').hidden = true;
   $('#shNative').hidden = !navigator.share; $('#shPublish').hidden = true;
   $('#shBox2').hidden = !hosted; $('#shUrl2').value = ARTIFACT_URL;
   const qrOk = url.length <= QR_MAX;
@@ -967,7 +971,8 @@ async function openShare() {
   const linkMsg = `<br>${copied ? '✅ <b>คัดลอกลิงก์ให้แล้ว</b> — วางในแชทส่งได้เลย' : 'กด <b>คัดลอก</b> แล้ววางในแชทส่งได้เลย'}` +
     (navigator.share ? ' หรือกด <b>📤 ส่งต่อ…</b> เพื่อเลือกแอป' : '') +
     `<br><span style="font-size:13px">คนที่เปิดจะได้วงล้อชุดนี้ <b>พร้อมหมุนทันที</b> (แบบชั่วคราว ไม่ทับวงล้อของเขาเอง)` +
-    (qrOk ? ' · หรือให้สแกน QR' : ' · รายการยาว จึงไม่มี QR') + '</span>';
+    (qrOk ? ' · หรือให้สแกน QR' : ' · กด <b>✂️ ย่อลิงก์</b> เพื่อให้ลิงก์สั้นและได้ QR') +
+    '<br>ปุ่มย่อลิงก์ใช้บริการฟรีของ is.gd — ลิงก์ (รวมรายการในวงล้อ) จะถูกเก็บไว้ที่ is.gd</span>';
   if (!hosted) {
     desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
     return;
@@ -985,6 +990,35 @@ async function openShare() {
     desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
   }
 }
+/* ---------- short links via is.gd (JSONP: works from a static site without CORS) ---------- */
+const shortCache = {};
+function isgd(url) {
+  return new Promise((resolve, reject) => {
+    const cb = '__isgd' + Date.now(), s = document.createElement('script');
+    const done = () => { clearTimeout(timer); try { delete window[cb]; } catch {} s.remove(); };
+    const timer = setTimeout(() => { done(); reject(new Error('timeout')); }, 10000);
+    window[cb] = d => { done(); d && d.shorturl ? resolve(d.shorturl) : reject(new Error((d && d.errormessage) || 'error')); };
+    s.onerror = () => { done(); reject(new Error('blocked')); };
+    s.src = 'https://is.gd/create.php?format=json&callback=' + cb + '&url=' + encodeURIComponent(url);
+    document.head.appendChild(s);
+  });
+}
+$('#shShort').onclick = async () => {
+  const btn = $('#shShort'), long = $('#shUrl').value;
+  btn.disabled = true; btn.textContent = 'กำลังย่อ…';
+  try {
+    const short = shortCache[long] || await isgd(long);
+    shortCache[long] = short;
+    $('#shUrl').value = short; btn.hidden = true;
+    renderQR(short);
+    await copyFrom($('#shUrl'));
+    toast('ย่อลิงก์แล้ว ✂️ ' + short);
+  } catch (e) {
+    // the page couldn't reach is.gd directly (e.g. blocked here): let the viewer open is.gd themselves
+    const a = $('#shIsgd'); a.href = 'https://is.gd/create.php?url=' + encodeURIComponent(long); a.hidden = false;
+    toast(/long|5000/i.test(e.message) ? 'รายการยาวเกินกว่าที่ is.gd รับได้' : 'ย่ออัตโนมัติไม่ได้ — กด “เปิด is.gd เพื่อย่อ” แล้วคัดลอกลิงก์สั้นจากหน้านั้น');
+  } finally { btn.disabled = false; btn.textContent = '✂️ ย่อลิงก์'; }
+};
 function closeShare() { shareModal.classList.remove('open'); }
 $('#btnShare').onclick = openShare;
 $('#tShare').onclick = openShare;
