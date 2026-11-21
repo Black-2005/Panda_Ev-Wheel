@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Panda EV Wheel</title>
+<meta name="description" content="วงล้อสุ่มรายชื่อ/รางวัล ใช้งานฟรี ปรับแต่งได้ แชร์ลิงก์ได้">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%236c5ce7'/%3E%3Cpath d='M50 50 L50 4 A46 46 0 0 1 96 50Z' fill='%23feca57'/%3E%3Cpath d='M50 50 L96 50 A46 46 0 0 1 50 96Z' fill='%2300b894'/%3E%3Ccircle cx='50' cy='50' r='10' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f3f4fa; --bg-2:#e9ebf7; --panel:#ffffff; --text:#1d2033; --muted:#6b7090;
+  --border:#e1e4f0; --accent:#6c5ce7; --accent-ink:#ffffff; --ok:#00a383; --danger:#e5484d;
+  --field:#f6f7fc; --shadow:0 12px 34px rgba(30,30,80,.10);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#10121c; --bg-2:#171a28; --panel:#1b1e2e; --text:#eceefa; --muted:#9aa0c0;
+    --border:#2b2f45; --accent:#8b7cf6; --accent-ink:#ffffff; --ok:#2fd3a7; --danger:#ff6b6f;
+    --field:#14172399; --shadow:0 12px 34px rgba(0,0,0,.45); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10121c; --bg-2:#171a28; --panel:#1b1e2e; --text:#eceefa; --muted:#9aa0c0;
+  --border:#2b2f45; --accent:#8b7cf6; --accent-ink:#ffffff; --ok:#2fd3a7; --danger:#ff6b6f;
+  --field:#14172399; --shadow:0 12px 34px rgba(0,0,0,.45); color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; font-family:"Prompt",system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text);
+  background:radial-gradient(1200px 700px at 30% 20%,var(--bg-2),var(--bg)); background-color:var(--bg);
+  -webkit-tap-highlight-color:transparent; overflow-x:hidden;
+}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.app{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh}
+
+/* header */
+header{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.brand svg{flex:none}
+#title{
+  font-size:clamp(18px,2.4vw,26px);font-weight:700;border:1px solid transparent;background:transparent;
+  border-radius:10px;padding:4px 8px;min-width:0;width:100%;max-width:560px;
+}
+#title:hover{border-color:var(--border)}
+#title:focus{outline:none;border-color:var(--accent);background:var(--panel)}
+.icon-btns{display:flex;gap:6px}
+.ibtn{
+  width:40px;height:40px;border-radius:12px;border:1px solid var(--border);background:var(--panel);
+  display:grid;place-items:center;transition:transform .1s,border-color .2s;
+}
+.ibtn:hover{border-color:var(--accent)}
+.ibtn:active{transform:scale(.94)}
+.ibtn svg{width:20px;height:20px}
+.ibtn.off{opacity:.45}
+
+/* layout */
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:0 16px 16px;min-height:0}
+.app.focus main{grid-template-columns:minmax(0,1fr)}
+.app.focus aside{display:none}
+.stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-width:0;min-height:0}
+.wheel-wrap{
+  position:relative;width:min(100%,calc(100vh - 190px),780px);width:min(100%,calc(100dvh - 190px),780px);
+  aspect-ratio:1;min-width:260px;user-select:none;touch-action:none;
+}
+.app.focus .wheel-wrap{width:min(100%,calc(100dvh - 150px),980px)}
+#wheel{width:100%;height:100%;display:block;cursor:grab;border-radius:50%;
+  filter:drop-shadow(0 18px 30px rgba(20,20,60,.28))}
+#wheel:active{cursor:grabbing}
+.pointer{
+  position:absolute;left:50%;top:-1.5%;width:9%;min-width:30px;transform:translateX(-50%) rotate(0deg);
+  transform-origin:50% 18%;transition:transform .14s cubic-bezier(.3,1.8,.5,1);z-index:2;pointer-events:none;
+  filter:drop-shadow(0 4px 4px rgba(0,0,0,.3));
+}
+.pointer.kick{transform:translateX(-50%) rotate(-24deg);transition:transform .04s linear}
+.hub{
+  position:absolute;left:50%;top:50%;width:19%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;
+  border:none;background:radial-gradient(circle at 35% 30%,#fff,#e9e9f3 70%);color:#2b2d42;font-weight:700;
+  font-size:clamp(13px,2.2vw,22px);box-shadow:0 6px 18px rgba(0,0,0,.28),inset 0 -4px 8px rgba(0,0,0,.08);
+  display:grid;place-items:center;overflow:hidden;z-index:3;transition:transform .15s;padding:0;
+}
+.hub:hover{transform:translate(-50%,-50%) scale(1.05)}
+.hub:active{transform:translate(-50%,-50%) scale(.96)}
+.hub img{width:100%;height:100%;object-fit:cover}
+.hub.busy{pointer-events:none}
+.result-line{min-height:34px;font-size:clamp(16px,2vw,22px);text-align:center;color:var(--muted)}
+.result-line b{color:var(--text)}
+.hint{font-size:13px;color:var(--muted);text-align:center}
+kbd{border:1px solid var(--border);border-bottom-width:2px;border-radius:6px;padding:0 6px;font-size:12px;background:var(--panel)}
+
+/* panel */
+aside{background:var(--panel);border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;min-height:0;max-height:calc(100dvh - 80px);overflow:hidden}
+.tabs{display:flex;gap:4px;padding:8px;border-bottom:1px solid var(--border)}
+.tab{flex:1;border:none;background:transparent;padding:9px 6px;border-radius:12px;font-weight:500;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.tab .badge{display:inline-block;min-width:22px;padding:0 6px;border-radius:99px;background:rgba(127,127,160,.2);font-size:12px;margin-left:4px}
+.tab[aria-selected="true"] .badge{background:rgba(255,255,255,.25)}
+.pane{display:none;flex-direction:column;gap:10px;padding:14px;overflow:auto;flex:1;min-height:0}
+.pane.active{display:flex}
+textarea#entries{
+  width:100%;flex:1;min-height:260px;resize:vertical;border:1px solid var(--border);border-radius:14px;
+  padding:12px;background:var(--field);line-height:1.7;font-size:15px;
+}
+textarea#entries:focus,select:focus,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.tools{display:flex;flex-wrap:wrap;gap:6px}
+.btn{
+  border:1px solid var(--border);background:var(--panel);border-radius:10px;padding:7px 12px;font-size:14px;
+  display:inline-flex;align-items:center;gap:6px;transition:border-color .2s,background .2s;
+}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--danger)}
+.btn.big{padding:12px 28px;font-size:18px;font-weight:600;border-radius:14px}
+.small{font-size:13px;color:var(--muted);line-height:1.6}
+.small code{background:var(--field);border:1px solid var(--border);padding:0 5px;border-radius:6px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--border)}
+.row:last-child{border-bottom:none}
+.row label{flex:1}
+.row .sub{display:block;font-size:12px;color:var(--muted)}
+select,input[type=number]{border:1px solid var(--border);background:var(--field);border-radius:10px;padding:6px 10px}
+input[type=range]{width:140px;accent-color:var(--accent)}
+.switch{position:relative;width:46px;height:26px;flex:none}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch span{position:absolute;inset:0;border-radius:99px;background:#9aa0c066;transition:.2s}
+.switch span::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch input:checked+span{background:var(--ok)}
+.switch input:checked+span::after{transform:translateX(20px)}
+.switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.swatches{display:flex;gap:3px}
+.swatches i{width:14px;height:14px;border-radius:4px;display:block}
+.palettes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pal{border:2px solid var(--border);background:var(--field);border-radius:12px;padding:8px;text-align:left;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.pal[aria-pressed="true"]{border-color:var(--accent)}
+ol.history{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+ol.history li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--field);border:1px solid var(--border)}
+ol.history .n{font-size:12px;color:var(--muted);min-width:26px}
+ol.history .name{flex:1;font-weight:500;word-break:break-word}
+ol.history .time{font-size:12px;color:var(--muted)}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.stats{display:flex;flex-direction:column;gap:6px}
+.stat{display:grid;grid-template-columns:minmax(0,1fr) 120px 36px;align-items:center;gap:8px;font-size:14px}
+.stat .bar{height:8px;border-radius:99px;background:var(--field);overflow:hidden;border:1px solid var(--border)}
+.stat .bar i{display:block;height:100%;background:var(--accent)}
+.stat span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty{color:var(--muted);text-align:center;padding:30px 0}
+h3{margin:6px 0 0;font-size:15px}
+
+/* modal */
+.modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(10,10,25,.55);z-index:50;padding:16px;backdrop-filter:blur(3px)}
+.modal.open{display:grid;animation:fade .2s}
+.card{
+  background:var(--panel);border-radius:24px;padding:26px 24px 22px;width:min(460px,100%);text-align:center;
+  box-shadow:0 30px 80px rgba(0,0,0,.4);border-top:10px solid var(--win,#6c5ce7);animation:pop .35s cubic-bezier(.2,1.6,.4,1);
+}
+.card .label{color:var(--muted);font-size:15px}
+.card .winner{font-size:clamp(28px,7vw,48px);font-weight:700;margin:8px 0 18px;word-break:break-word;line-height:1.25}
+.card .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+@keyframes fade{from{opacity:0}}
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,30px);opacity:0;background:var(--text);color:var(--bg);
+  padding:10px 18px;border-radius:12px;z-index:70;transition:.25s;font-size:14px;max-width:calc(100% - 32px);text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+@media (max-width:900px){
+  main{grid-template-columns:minmax(0,1fr)}
+  aside{max-height:none}
+  .wheel-wrap{width:min(100%,92vw,calc(100dvh - 210px));min-width:240px}
+  textarea#entries{min-height:220px}
+}
+@media (max-width:420px){
+  header{padding:10px 12px}
+  main{padding:0 12px 12px}
+  .ibtn{width:36px;height:36px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="#6c5ce7"/><path d="M50 50 L50 4 A46 46 0 0 1 96 50Z" fill="#feca57"/><path d="M50 50 L96 50 A46 46 0 0 1 50 96Z" fill="#00b894"/><path d="M50 50 L4 50 A46 46 0 0 1 50 4Z" fill="#ff6b6b"/><circle cx="50" cy="50" r="11" fill="#fff"/></svg>
+      <input id="title" aria-label="ชื่อวงล้อ" maxlength="80" value="Panda EV Wheel">
+    </div>
+    <div class="icon-btns">
+      <button class="ibtn" id="btnSound" title="เปิด/ปิดเสียง" aria-label="เปิด/ปิดเสียง"></button>
+      <button class="ibtn" id="btnTheme" title="สลับธีม สว่าง/มืด" aria-label="สลับธีม">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      <button class="ibtn" id="btnShare" title="คัดลอกลิงก์แชร์วงล้อ" aria-label="แชร์">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></button>
+      <button class="ibtn" id="btnFocus" title="โหมดโฟกัส / เต็มจอ (F)" aria-label="เต็มจอ">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="stage">
+      <div class="wheel-wrap" id="wrap">
+        <svg class="pointer" id="pointer" viewBox="0 0 60 80" aria-hidden="true">
+          <defs><linearGradient id="pg" x1="0" x2="1"><stop offset="0" stop-color="#ff5d5d"/><stop offset="1" stop-color="#d63031"/></linearGradient></defs>
+          <path d="M30 78 L4 22 A28 28 0 1 1 56 22 Z" fill="url(#pg)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+          <circle cx="30" cy="26" r="9" fill="#fff"/>
+        </svg>
+        <canvas id="wheel" aria-label="วงล้อสุ่ม คลิกเพื่อหมุน" role="img"></canvas>
+        <button class="hub" id="hub" aria-label="หมุนวงล้อ"><span id="hubLabel">หมุน!</span></button>
+      </div>
+      <div class="result-line" id="resultLine" aria-live="polite">กดปุ่ม <b>หมุน!</b> คลิกที่วงล้อ หรือปัดเพื่อหมุน</div>
+      <div class="hint">คีย์ลัด: <kbd>Space</kbd> หมุน · <kbd>F</kbd> เต็มจอ · <kbd>Esc</kbd> ปิดหน้าต่าง</div>
+    </section>
+
+    <aside>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="entries">รายการ <span class="badge" id="countBadge">0</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="results">ผลลัพธ์ <span class="badge" id="histBadge">0</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="settings">ตั้งค่า</button>
+      </div>
+
+      <div class="pane active" id="pane-entries">
+        <textarea id="entries" spellcheck="false" aria-label="รายการในวงล้อ หนึ่งบรรทัดต่อหนึ่งรายการ"></textarea>
+        <div class="tools">
+          <button class="btn" id="tShuffle">🔀 สลับ</button>
+          <button class="btn" id="tSort">🔤 เรียง</button>
+          <button class="btn" id="tDedupe">🧹 ลบซ้ำ</button>
+          <button class="btn" id="tImport">📂 นำเข้า</button>
+          <button class="btn danger" id="tClear">🗑️ ล้าง</button>
+          <input type="file" id="fileImport" accept=".txt,.csv,text/plain,text/csv" hidden>
+        </div>
+        <div class="small">
+          หนึ่งบรรทัด = หนึ่งช่อง · เพิ่มโอกาสด้วย <code>*น้ำหนัก</code> เช่น <code>รางวัลใหญ่ *0.5</code> หรือ <code>ลองใหม่ *3</code>
+          (ช่องจะกว้างตามโอกาสจริง) · ขึ้นต้นด้วย <code>#</code> เพื่อซ่อนชั่วคราว
+        </div>
+        <div class="small" id="probInfo"></div>
+      </div>
+
+      <div class="pane" id="pane-results">
+        <div class="tools">
+          <button class="btn" id="hCopy">📋 คัดลอกผล</button>
+          <button class="btn" id="hCsv">⬇️ ดาวน์โหลด CSV</button>
+          <button class="btn danger" id="hClear">🗑️ ล้างประวัติ</button>
+        </div>
+        <div id="statsBox"></div>
+        <h3>ประวัติการสุ่ม</h3>
+        <ol class="history" id="historyList"></ol>
+      </div>
+
+      <div class="pane" id="pane-settings">
+        <div class="row"><label for="sDuration">ระยะเวลาหมุน<span class="sub" id="durLabel">6 วินาที</span></label>
+          <input type="range" id="sDuration" min="2" max="20" step="1" value="6"></div>
+        <div class="row"><label for="sAutoRemove">ลบผู้ชนะออกอัตโนมัติ<span class="sub">เหมาะกับการจับรางวัลไม่ซ้ำคน</span></label>
+          <span class="switch"><input type="checkbox" id="sAutoRemove"><span></span></span></div>
+        <div class="row"><label for="sPopup">แสดงหน้าต่างประกาศผล</label>
+          <span class="switch"><input type="checkbox" id="sPopup" checked><span></span></span></div>
+        <div class="row"><label for="sConfetti">พลุกระดาษเมื่อได้ผล</label>
+          <span class="switch"><input type="checkbox" id="sConfetti" checked><span></span></span></div>
+        <div class="row"><label for="sSound">เสียงติ๊ก &amp; เสียงฉลอง</label>
+          <span class="switch"><input type="checkbox" id="sSound" checked><span></span></span></div>
+        <div class="row"><label for="sLights">ไฟกะพริบรอบวงล้อ</label>
+          <span class="switch"><input type="checkbox" id="sLights" checked><span></span></span></div>
+        <div class="row"><label for="sVolume">ระดับเสียง</label>
+          <input type="range" id="sVolume" min="0" max="1" step="0.05" value="0.6"></div>
+        <h3>ชุดสี</h3>
+        <div class="palettes" id="palettes"></div>
+        <h3>โลโก้ตรงกลาง</h3>
+        <div class="tools">
+          <button class="btn" id="logoPick">🖼️ เลือกรูป</button>
+          <button class="btn danger" id="logoClear">ลบรูป</button>
+          <input type="file" id="logoFile" accept="image/*" hidden>
+        </div>
+        <div class="small">ข้อมูลทั้งหมดบันทึกในเบราว์เซอร์นี้อัตโนมัติ · ลิงก์แชร์จะรวมรายการและการตั้งค่า (ไม่รวมรูปโลโก้)</div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="winnerName">
+  <div class="card" id="card">
+    <div class="label" id="winLabel">🎉 ผลการสุ่ม</div>
+    <div class="winner" id="winnerName"></div>
+    <div class="actions">
+      <button class="btn" id="mClose">ปิด</button>
+      <button class="btn danger" id="mRemove">ลบออกจากวงล้อ</button>
+      <button class="btn primary" id="mAgain">หมุนอีกครั้ง</button>
+    </div>
+  </div>
+</div>
+<canvas id="confetti"></canvas>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- utilities ---------- */
+const $ = s => document.querySelector(s);
+const TAU = Math.PI * 2;
+const mod = (a, n) => ((a % n) + n) % n;
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} }
+};
+// cryptographically fair random in [0,1)
+const rand = () => {
+  try { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] / 4294967296; }
+  catch { return Math.random(); }
+};
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- palettes ---------- */
+const PALETTES = {
+  vivid:  { name:'สดใส',   c:['#ff6b6b','#feca57','#48dbfb','#1dd1a1','#5f27cd','#ff9ff3','#54a0ff','#ff9f43'] },
+  panda:  { name:'แพนด้า EV', c:['#1f1f24','#f4f4f6','#2ecc71','#3b3b44','#ffffff','#16a085'] },
+  pastel: { name:'พาสเทล', c:['#ffadad','#ffd6a5','#fdffb6','#caffbf','#9bf6ff','#a0c4ff','#bdb2ff','#ffc6ff'] },
+  ocean:  { name:'ทะเล',   c:['#03045e','#0077b6','#00b4d8','#90e0ef','#023e8a','#48cae4','#0096c7','#ade8f4'] },
+  sunset: { name:'พระอาทิตย์ตก', c:['#f94144','#f3722c','#f8961e','#f9c74f','#90be6d','#43aa8b','#577590','#f9844a'] },
+  candy:  { name:'ลูกกวาด', c:['#ef476f','#ffd166','#06d6a0','#118ab2','#073b4c','#f78c6b'] },
+  forest: { name:'ป่าไม้', c:['#2d6a4f','#52b788','#95d5b2','#1b4332','#74c69d','#d8f3dc','#40916c','#b7e4c7'] },
+  mono:   { name:'ขาวดำหรู', c:['#111111','#d4af37','#2a2a2a','#f2e6b8','#3d3d3d','#b8962e'] }
+};
+function textColorFor(hex) {
+  const n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return L > 0.6 ? '#1d1d28' : '#ffffff';
+}
+
+/* ---------- state ---------- */
+const DEFAULT_ENTRIES = [
+  'ส่วนลด 10%', 'ฟรีค่าชาร์จ 1 เดือน', 'หมวกกันน็อก', 'ลองใหม่อีกครั้ง *2',
+  'บัตรกำนัล 500 บาท', 'ของที่ระลึก', 'ส่วนลด 20%', 'รางวัลใหญ่ 🎁 *0.5'
+].join('\n');
+const DEFAULT_SETTINGS = { duration:6, autoRemove:false, popup:true, confetti:true, sound:true, lights:true, volume:0.6, palette:'vivid' };
+
+let state = {
+  title: store.get('pw.title', 'Panda EV Wheel'),
+  raw: store.get('pw.raw', DEFAULT_ENTRIES),
+  settings: Object.assign({}, DEFAULT_SETTINGS, store.get('pw.settings', {})),
+  history: store.get('pw.history', []),
+  theme: store.get('pw.theme', null)
+};
+let logo = store.get('pw.logo', null);
+
+// shared link overrides local data
+(function loadFromHash() {
+  const m = location.hash.match(/^#w=(.+)$/);
+  if (!m) return;
+  try {
+    const json = new TextDecoder().decode(Uint8Array.from(atob(decodeURIComponent(m[1]).replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0)));
+    const d = JSON.parse(json);
+    if (typeof d.t === 'string') state.title = d.t.slice(0, 80);
+    if (typeof d.e === 'string') state.raw = d.e;
+    if (d.s && typeof d.s === 'object') state.settings = Object.assign({}, DEFAULT_SETTINGS, d.s);
+    history.replaceState(null, '', location.pathname + location.search);
+    setTimeout(() => toast('โหลดวงล้อจากลิงก์แชร์แล้ว'), 300);
+  } catch {}
+})();
+
+let entries = [];   // {text, weight, line, color, ink}
+let slices = [];    // {start, end}
+function parseEntries() {
+  const lines = state.raw.split(/\r?\n/);
+  const pal = (PALETTES[state.settings.palette] || PALETTES.vivid).c;
+  const out = [];
+  lines.forEach((ln, i) => {
+    let t = ln.trim();
+    if (!t || t.startsWith('#')) return;
+    let w = 1;
+    const m = t.match(/^(.*?)\s*\*\s*(\d+(?:\.\d+)?)\s*$/);
+    if (m && m[1].trim()) { t = m[1].trim(); w = Math.min(1000, Math.max(0, parseFloat(m[2]))); }
+    if (w <= 0) return;
+    out.push({ text: t, weight: w, line: i });
+  });
+  const n = out.length, L = pal.length;
+  out.forEach((e, i) => {
+    let c = pal[i % L];
+    if (n > 1 && i === n - 1 && i % L === 0) c = pal[(L > 2 ? 1 : 0)]; // avoid same color as first slice
+    e.color = c; e.ink = textColorFor(c);
+  });
+  entries = out;
+  const total = out.reduce((s, e) => s + e.weight, 0);
+  let a = 0;
+  slices = out.map(e => { const s = a; a += e.weight / total * TAU; return { start: s, end: a }; });
+  if (slices.length) slices[slices.length - 1].end = TAU;
+  $('#countBadge').textContent = n;
+  const uneven = out.some(e => e.weight !== out[0].weight);
+  $('#probInfo').innerHTML = !n ? '' : uneven
+    ? 'โอกาส: ' + out.slice(0, 12).map(e => `${esc(e.text)} <b>${(e.weight / total * 100).toFixed(1)}%</b>`).join(' · ') + (n > 12 ? ' …' : '')
+    : `โอกาสเท่ากันทุกช่อง: <b>${(100 / n).toFixed(2)}%</b>`;
+}
+
+/* ---------- canvas & rendering ---------- */
+const canvas = $('#wheel'), ctx = canvas.getContext('2d');
+const off = document.createElement('canvas'), octx = off.getContext('2d');
+let rot = 0, size = 0, dpr = 1, lightPhase = 0, spinning = false, highlight = -1;
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const w = canvas.clientWidth;
+  if (!w) return;
+  size = Math.round(w * dpr);
+  canvas.width = canvas.height = size;
+  renderWheel(); draw();
+}
+function fitText(c, text, maxW) {
+  if (c.measureText(text).width <= maxW) return text;
+  const chars = Array.from(text);
+  let lo = 0, hi = chars.length;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (c.measureText(chars.slice(0, mid).join('') + '…').width <= maxW) lo = mid; else hi = mid - 1; }
+  return lo ? chars.slice(0, lo).join('') + '…' : '';
+}
+function renderWheel() {
+  if (!size) return;
+  off.width = off.height = size;
+  const c = octx, R = size / 2, r = R * 0.9, hubR = R * 0.1;
+  c.clearRect(0, 0, size, size);
+  c.save(); c.translate(R, R);
+  if (!entries.length) {
+    c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fillStyle = '#c9cce0'; c.fill();
+    c.fillStyle = '#5b5f7a'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `600 ${R * 0.07}px Prompt, sans-serif`;
+    c.fillText('เพิ่มรายการทางขวา ➜', 0, -R * 0.28);
+    c.restore(); return;
+  }
+  entries.forEach((e, i) => {
+    const { start, end } = slices[i], sweep = end - start;
+    c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, r, start, end); c.closePath();
+    c.fillStyle = e.color; c.fill();
+    if (entries.length > 1) { c.lineWidth = Math.max(1, R * 0.006); c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke(); }
+    // label
+    const arcLen = sweep * r * 0.62;
+    let fs = Math.min(R * 0.085, arcLen * 0.62);
+    if (fs < 6 * dpr) return;
+    c.save(); c.rotate(start + sweep / 2);
+    c.fillStyle = e.ink; c.textAlign = 'right'; c.textBaseline = 'middle';
+    c.font = `600 ${fs}px Prompt, sans-serif`;
+    const maxW = r * 0.92 - hubR * 1.9;
+    let label = e.text;
+    // shrink a bit before truncating
+    if (c.measureText(label).width > maxW) {
+      const ratio = maxW / c.measureText(label).width;
+      if (ratio > 0.6) { fs *= ratio; c.font = `600 ${fs}px Prompt, sans-serif`; }
+      label = fitText(c, label, maxW);
+    }
+    if (e.ink === '#ffffff') { c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = fs * 0.15; }
+    c.fillText(label, r * 0.92, 0);
+    c.restore();
+  });
+  // inner shading for depth
+  const g = c.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.85, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,.18)');
+  c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fillStyle = g; c.fill();
+  c.restore();
+}
+function draw() {
+  if (!size) return;
+  const R = size / 2, r = R * 0.9;
+  ctx.clearRect(0, 0, size, size);
+  // rim
+  ctx.save(); ctx.translate(R, R);
+  const rg = ctx.createLinearGradient(-R, -R, R, R);
+  rg.addColorStop(0, '#3a3d5c'); rg.addColorStop(1, '#1b1d2e');
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.995, 0, TAU); ctx.fillStyle = rg; ctx.fill();
+  ctx.restore();
+  // wheel
+  ctx.save(); ctx.translate(R, R); ctx.rotate(rot); ctx.drawImage(off, -R, -R); ctx.restore();
+  // highlight winning slice after spin
+  if (highlight >= 0 && slices[highlight]) {
+    const s = slices[highlight];
+    ctx.save(); ctx.translate(R, R); ctx.rotate(rot);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, s.start, s.end); ctx.closePath();
+    ctx.lineWidth = R * 0.018; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.restore();
+    ctx.save(); ctx.translate(R, R); ctx.rotate(rot);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU);
+    ctx.moveTo(0,0); ctx.arc(0, 0, r, s.end, s.start, true); ctx.closePath();
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill('evenodd');
+    ctx.restore();
+  }
+  // lights
+  const N = 24;
+  for (let i = 0; i < N; i++) {
+    const a = i / N * TAU - Math.PI / 2;
+    const x = R + Math.cos(a) * R * 0.948, y = R + Math.sin(a) * R * 0.948;
+    const on = state.settings.lights ? ((i + lightPhase) % 2 === 0) : true;
+    ctx.beginPath(); ctx.arc(x, y, R * 0.017, 0, TAU);
+    ctx.fillStyle = on ? '#fff6c4' : '#7a6b3a';
+    if (on) { ctx.shadowColor = '#ffe066'; ctx.shadowBlur = R * 0.03; }
+    ctx.fill(); ctx.shadowBlur = 0;
+  }
+}
+
+/* ---------- audio ---------- */
+let actx = null;
+function audio() {
+  if (!state.settings.sound) return null;
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  } catch { return null; }
+}
+let lastTick = 0;
+function tick() {
+  const a = audio(); if (!a) return;
+  const now = a.currentTime;
+  if (now - lastTick < 0.028) return; lastTick = now;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(1500, now); o.frequency.exponentialRampToValueAtTime(600, now + 0.03);
+  g.gain.setValueAtTime(0.22 * state.settings.volume, now); g.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+  o.connect(g).connect(a.destination); o.start(now); o.stop(now + 0.05);
+}
+function fanfare() {
+  const a = audio(); if (!a) return;
+  const t0 = a.currentTime + 0.02;
+  [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5].forEach((f, i) => {
+    const t = t0 + i * 0.11, dur = i === 5 ? 0.6 : 0.16;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = 'square'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09 * state.settings.volume, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
+  });
+}
+
+/* ---------- spin logic ---------- */
+const pointerEl = $('#pointer');
+function indexAtPointer(r) {
+  const a = mod(-Math.PI / 2 - r, TAU);
+  let lo = 0, hi = slices.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (slices[mid].end <= a) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+function pickWeighted() {
+  const total = entries.reduce((s, e) => s + e.weight, 0);
+  let x = rand() * total;
+  for (let i = 0; i < entries.length; i++) { x -= entries[i].weight; if (x < 0) return i; }
+  return entries.length - 1;
+}
+let kickTimer;
+function kickPointer() {
+  pointerEl.classList.add('kick');
+  clearTimeout(kickTimer); kickTimer = setTimeout(() => pointerEl.classList.remove('kick'), 45);
+}
+// easing: quick start, long suspenseful slowdown
+const ease = p => 1 - Math.pow(1 - p, 4.2);
+
+function spin(boost = 1) {
+  if (spinning) return;
+  if (!entries.length) { toast('กรุณาเพิ่มรายการก่อนหมุน'); return; }
+  closeModal(true);
+  audio(); // unlock audio within user gesture
+  spinning = true; highlight = -1;
+  $('#hub').classList.add('busy');
+  $('#resultLine').innerHTML = 'กำลังหมุน…';
+  const win = pickWeighted();
+  const s = slices[win], sw = s.end - s.start;
+  const margin = Math.min(sw * 0.18, 0.08);
+  const target = s.start + margin + rand() * Math.max(0, sw - 2 * margin);
+  const dur = state.settings.duration * 1000 * Math.min(1.25, Math.max(0.85, boost));
+  const turns = Math.max(3, Math.round(state.settings.duration * 1.15 * Math.max(1, boost)));
+  const from = rot;
+  const finalA = mod(-Math.PI / 2 - target, TAU);
+  const to = from + turns * TAU + mod(finalA - from, TAU);
+  const t0 = performance.now();
+  let lastIdx = indexAtPointer(rot), lastLight = 0;
+  function frame(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    rot = from + (to - from) * ease(p);
+    const idx = indexAtPointer(rot);
+    if (idx !== lastIdx) { lastIdx = idx; if (entries.length > 1) { tick(); kickPointer(); } }
+    if (now - lastLight > 140 - 100 * (1 - p)) { lightPhase ^= 1; lastLight = now; }
+    draw();
+    if (p < 1) requestAnimationFrame(frame);
+    else { rot = mod(rot, TAU); finish(win); }
+  }
+  requestAnimationFrame(frame);
+}
+
+let lastWinner = null;
+function finish(i) {
+  spinning = false;
+  $('#hub').classList.remove('busy');
+  const e = entries[i];
+  lastWinner = { text: e.text, line: e.line, color: e.color };
+  highlight = i; draw();
+  state.history.unshift({ text: e.text, color: e.color, t: Date.now() });
+  if (state.history.length > 500) state.history.length = 500;
+  store.set('pw.history', state.history);
+  renderHistory();
+  $('#resultLine').innerHTML = `ผลล่าสุด: <b>${esc(e.text)}</b>`;
+  if (state.settings.sound) fanfare();
+  if (state.settings.confetti) confetti(e.color);
+  // blink lights celebration
+  let n = 0; const iv = setInterval(() => { lightPhase ^= 1; draw(); if (++n > 10) clearInterval(iv); }, 120);
+  if (state.settings.autoRemove) removeLine(e.line, true);
+  if (state.settings.popup) openModal(e);
+}
+
+/* ---------- modal ---------- */
+const modal = $('#modal');
+function openModal(e) {
+  $('#winnerName').textContent = e.text;
+  $('#card').style.setProperty('--win', e.color);
+  $('#mRemove').style.display = state.settings.autoRemove ? 'none' : '';
+  $('#winLabel').textContent = state.settings.autoRemove ? '🎉 ผลการสุ่ม (ลบออกจากวงล้อแล้ว)' : '🎉 ผลการสุ่ม';
+  modal.classList.add('open');
+  setTimeout(() => $('#mAgain').focus(), 50);
+}
+function closeModal(silent) { modal.classList.remove('open'); if (!silent) $('#hub').focus({ preventScroll: true }); }
+$('#mClose').onclick = () => closeModal();
+$('#mAgain').onclick = () => { closeModal(true); spin(); };
+$('#mRemove').onclick = () => { if (lastWinner) removeLine(lastWinner.line); closeModal(); };
+modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+function removeLine(line, quiet) {
+  const lines = state.raw.split(/\r?\n/);
+  if (line < 0 || line >= lines.length) return;
+  const removed = lines.splice(line, 1)[0];
+  setRaw(lines.join('\n'));
+  highlight = -1; draw();
+  if (!quiet) toast(`ลบ “${removed.trim()}” ออกแล้ว`);
+}
+
+/* ---------- confetti ---------- */
+const cc = $('#confetti'), cctx = cc.getContext('2d');
+let parts = [], confettiRunning = false;
+function confetti(main) {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const W = cc.width = innerWidth * dpr, H = cc.height = innerHeight * dpr;
+  const colors = [main, '#ffd166', '#06d6a0', '#ef476f', '#118ab2', '#ffffff', '#a29bfe'];
+  const count = reduce ? 60 : 220;
+  for (let i = 0; i < count; i++) {
+    const side = i % 2 ? 1 : -1;
+    parts.push({
+      x: side > 0 ? W * 0.02 : W * 0.98, y: H * 0.75,
+      vx: -side * (6 + rand() * 14) * dpr * -1, vy: -(14 + rand() * 16) * dpr,
+      w: (6 + rand() * 8) * dpr, h: (4 + rand() * 6) * dpr, r: rand() * TAU, vr: (rand() - 0.5) * 0.4,
+      c: colors[i % colors.length], life: 0
+    });
+  }
+  if (!confettiRunning) { confettiRunning = true; requestAnimationFrame(stepConfetti); }
+}
+function stepConfetti() {
+  const W = cc.width, H = cc.height;
+  cctx.clearRect(0, 0, W, H);
+  parts = parts.filter(p => p.y < H + 40 && p.life < 400);
+  for (const p of parts) {
+    p.life++; p.vy += 0.42 * dpr; p.vx *= 0.985; p.vy *= 0.985; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+    cctx.save(); cctx.translate(p.x, p.y); cctx.rotate(p.r); cctx.scale(1, Math.cos(p.life * 0.15));
+    cctx.fillStyle = p.c; cctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); cctx.restore();
+  }
+  if (parts.length) requestAnimationFrame(stepConfetti);
+  else { confettiRunning = false; cctx.clearRect(0, 0, W, H); }
+}
+
+/* ---------- interaction: click / flick ---------- */
+let drag = null;
+canvas.addEventListener('pointerdown', e => {
+  if (spinning) return;
+  const b = canvas.getBoundingClientRect();
+  const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+  const a = Math.atan2(e.clientY - cy, e.clientX - cx);
+  drag = { cx, cy, a, startRot: rot, last: a, lastT: performance.now(), v: 0, moved: 0 };
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const a = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
+  let d = a - drag.last; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU;
+  const now = performance.now(), dt = Math.max(1, now - drag.lastT);
+  drag.v = drag.v * 0.6 + (d / dt) * 0.4;
+  drag.moved += Math.abs(d); drag.last = a; drag.lastT = now;
+  rot += d; highlight = -1; draw();
+});
+canvas.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const { v, moved } = drag; drag = null;
+  if (moved < 0.05) spin();                  // simple click
+  else if (Math.abs(v) > 0.004) spin(1 + Math.min(0.25, Math.abs(v) * 8)); // flick
+});
+canvas.addEventListener('pointercancel', () => { drag = null; });
+$('#hub').onclick = () => spin();
+
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  const typing = tag === 'textarea' || (tag === 'input' && !['checkbox', 'range'].includes(e.target.type)) || tag === 'select';
+  if (e.key === 'Escape' && modal.classList.contains('open')) { closeModal(); return; }
+  if (typing) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); spin(); } return; }
+  if ((e.code === 'Space' || e.key === 'Enter') && !(tag === 'button' && e.key === 'Enter')) { e.preventDefault(); if (modal.classList.contains('open')) { closeModal(true); } spin(); }
+  else if (e.key === 'f' || e.key === 'F') toggleFocus();
+});
+
+/* ---------- entries editor ---------- */
+const ta = $('#entries');
+let saveTimer;
+function setRaw(v, keepEditor) {
+  state.raw = v;
+  if (!keepEditor) ta.value = v;
+  parseEntries(); renderWheel(); draw();
+  clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('pw.raw', state.raw), 250);
+}
+ta.addEventListener('input', () => { if (spinning) return; highlight = -1; setRaw(ta.value, true); });
+const activeLines = () => state.raw.split(/\r?\n/).filter(l => l.trim());
+$('#tShuffle').onclick = () => {
+  if (spinning) return;
+  const a = activeLines();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  setRaw(a.join('\n')); toast('สลับลำดับแล้ว');
+};
+$('#tSort').onclick = () => { if (spinning) return; setRaw(activeLines().sort((x, y) => x.trim().localeCompare(y.trim(), 'th')).join('\n')); toast('เรียงลำดับแล้ว'); };
+$('#tDedupe').onclick = () => {
+  if (spinning) return;
+  const seen = new Set(), a = activeLines(), out = a.filter(l => { const k = l.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  setRaw(out.join('\n')); toast(`ลบรายการซ้ำ ${a.length - out.length} รายการ`);
+};
+$('#tClear').onclick = () => { if (spinning) return; if (!state.raw.trim() || confirm('ล้างรายการทั้งหมด?')) { setRaw(''); ta.focus(); } };
+$('#tImport').onclick = () => $('#fileImport').click();
+$('#fileImport').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const text = await f.text();
+  const lines = text.split(/\r?\n/).map(l => l.split(/[,;\t]/)[0].replace(/^"|"$/g, '').trim()).filter(Boolean);
+  setRaw((state.raw.trim() ? state.raw.trim() + '\n' : '') + lines.join('\n'));
+  toast(`นำเข้า ${lines.length} รายการ`); e.target.value = '';
+};
+
+/* ---------- history ---------- */
+function renderHistory() {
+  const h = state.history;
+  $('#histBadge').textContent = h.length;
+  const list = $('#historyList');
+  if (!h.length) { list.innerHTML = '<li class="empty" style="background:none;border:none;justify-content:center">ยังไม่มีประวัติ</li>'; $('#statsBox').innerHTML = ''; return; }
+  list.innerHTML = h.slice(0, 200).map((x, i) => {
+    const d = new Date(x.t);
+    return `<li><span class="n">#${h.length - i}</span><span class="dot" style="background:${x.color}"></span><span class="name">${esc(x.text)}</span><span class="time">${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span></li>`;
+  }).join('');
+  const counts = {};
+  h.forEach(x => counts[x.text] = (counts[x.text] || 0) + 1);
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const max = top[0][1];
+  $('#statsBox').innerHTML = `<h3>สถิติ (${h.length} ครั้ง)</h3><div class="stats">` + top.map(([k, v]) =>
+    `<div class="stat"><span title="${esc(k)}">${esc(k)}</span><span class="bar"><i style="width:${v / max * 100}%"></i></span><span>${v}</span></div>`).join('') + '</div>';
+}
+$('#hCopy').onclick = async () => {
+  if (!state.history.length) return toast('ยังไม่มีผล');
+  const txt = state.history.slice().reverse().map((x, i) => `${i + 1}. ${x.text}`).join('\n');
+  try { await navigator.clipboard.writeText(txt); toast('คัดลอกผลแล้ว'); } catch { prompt('คัดลอกข้อความนี้', txt); }
+};
+$('#hCsv').onclick = () => {
+  if (!state.history.length) return toast('ยังไม่มีผล');
+  const rows = [['ลำดับ', 'ผล', 'เวลา']].concat(state.history.slice().reverse().map((x, i) => [i + 1, x.text, new Date(x.t).toLocaleString('th-TH')]));
+  const csv = '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = (state.title || 'wheel') + '-results.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('#hClear').onclick = () => { if (state.history.length && confirm('ล้างประวัติทั้งหมด?')) { state.history = []; store.set('pw.history', []); renderHistory(); } };
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t.dataset.tab));
+});
+
+/* ---------- settings ---------- */
+const S = state.settings;
+function saveSettings() { store.set('pw.settings', S); }
+const bindSwitch = (id, key, after) => { const el = $(id); el.checked = !!S[key]; el.onchange = () => { S[key] = el.checked; saveSettings(); after && after(); }; };
+bindSwitch('#sAutoRemove', 'autoRemove');
+bindSwitch('#sPopup', 'popup');
+bindSwitch('#sConfetti', 'confetti');
+bindSwitch('#sSound', 'sound', updateSoundBtn);
+bindSwitch('#sLights', 'lights', draw);
+const dur = $('#sDuration');
+dur.value = S.duration; $('#durLabel').textContent = S.duration + ' วินาที';
+dur.oninput = () => { S.duration = +dur.value; $('#durLabel').textContent = S.duration + ' วินาที'; saveSettings(); };
+const vol = $('#sVolume'); vol.value = S.volume;
+vol.oninput = () => { S.volume = +vol.value; saveSettings(); };
+vol.onchange = () => tick();
+
+function renderPalettes() {
+  $('#palettes').innerHTML = Object.entries(PALETTES).map(([k, p]) =>
+    `<button class="pal" data-k="${k}" aria-pressed="${S.palette === k}"><span>${p.name}</span><span class="swatches">${p.c.slice(0, 8).map(c => `<i style="background:${c}"></i>`).join('')}</span></button>`).join('');
+  document.querySelectorAll('.pal').forEach(b => b.onclick = () => { S.palette = b.dataset.k; saveSettings(); renderPalettes(); parseEntries(); renderWheel(); draw(); });
+}
+
+const SOUND_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>';
+const SOUND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6M17 9l6 6"/></svg>';
+function updateSoundBtn() { const b = $('#btnSound'); b.innerHTML = S.sound ? SOUND_ON : SOUND_OFF; b.classList.toggle('off', !S.sound); $('#sSound').checked = S.sound; }
+$('#btnSound').onclick = () => { S.sound = !S.sound; saveSettings(); updateSoundBtn(); if (S.sound) tick(); };
+
+/* ---------- theme ---------- */
+function applyTheme() { if (state.theme) document.documentElement.dataset.theme = state.theme; else delete document.documentElement.dataset.theme; }
+$('#btnTheme').onclick = () => {
+  const dark = state.theme ? state.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  state.theme = dark ? 'light' : 'dark'; store.set('pw.theme', state.theme); applyTheme();
+};
+
+/* ---------- title ---------- */
+const titleEl = $('#title');
+titleEl.value = state.title; document.title = state.title || 'Panda EV Wheel';
+titleEl.oninput = () => { state.title = titleEl.value; document.title = state.title || 'Panda EV Wheel'; store.set('pw.title', state.title); };
+titleEl.onkeydown = e => { if (e.key === 'Enter') titleEl.blur(); };
+
+/* ---------- share ---------- */
+$('#btnShare').onclick = async () => {
+  const data = JSON.stringify({ t: state.title, e: state.raw, s: S });
+  const bytes = new TextEncoder().encode(data);
+  let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+  const b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const url = location.origin + location.pathname + '#w=' + b64;
+  try { await navigator.clipboard.writeText(url); toast('คัดลอกลิงก์แชร์แล้ว 🔗'); }
+  catch { prompt('คัดลอกลิงก์นี้', url); }
+};
+
+/* ---------- focus / fullscreen ---------- */
+function toggleFocus() {
+  const app = $('#app'), on = !app.classList.contains('focus');
+  app.classList.toggle('focus', on);
+  try {
+    if (on && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  } catch {}
+}
+$('#btnFocus').onclick = toggleFocus;
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) $('#app').classList.remove('focus'); });
+
+/* ---------- logo ---------- */
+function applyLogo() {
+  const hub = $('#hub');
+  hub.querySelector('img')?.remove();
+  $('#hubLabel').style.display = logo ? 'none' : '';
+  if (logo) { const img = new Image(); img.src = logo; img.alt = ''; hub.appendChild(img); }
+}
+$('#logoPick').onclick = () => $('#logoFile').click();
+$('#logoFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'), s = 320; c.width = c.height = s;
+    const k = Math.max(s / img.width, s / img.height), w = img.width * k, h = img.height * k;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, s, s); g.drawImage(img, (s - w) / 2, (s - h) / 2, w, h);
+    logo = c.toDataURL('image/jpeg', 0.88); store.set('pw.logo', logo); applyLogo(); URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f); e.target.value = '';
+};
+$('#logoClear').onclick = () => { logo = null; store.del('pw.logo'); applyLogo(); };
+
+/* ---------- init ---------- */
+applyTheme(); updateSoundBtn(); renderPalettes(); applyLogo();
+ta.value = state.raw;
+parseEntries(); renderHistory();
+new ResizeObserver(resize).observe(canvas);
+resize();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { renderWheel(); draw(); });
+window.addEventListener('resize', () => { if (cc.width) { cc.width = innerWidth * dpr; cc.height = innerHeight * dpr; } });
+})();
+</script>
+</body>
+</html>
