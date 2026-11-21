@@ -241,13 +241,14 @@ h3{margin:6px 0 0;font-size:15px}
 
       <div class="pane active" id="pane-entries">
         <textarea id="entries" spellcheck="false" placeholder="พิมพ์รายการ หนึ่งบรรทัดต่อหนึ่งช่อง เช่น&#10;สมชาย&#10;สมหญิง&#10;รางวัลใหญ่ *0.5" aria-label="รายการในวงล้อ หนึ่งบรรทัดต่อหนึ่งรายการ"></textarea>
+        <div class="small" id="sampleNote">💡 นี่คือรายการตัวอย่าง — กด <b>🗑️ ล้าง</b> แล้วพิมพ์รายการของคุณได้เลย</div>
         <div class="tools">
           <button class="btn" id="tShuffle">🔀 สลับ</button>
           <button class="btn" id="tSort">🔤 เรียง</button>
           <button class="btn" id="tDedupe">🧹 ลบซ้ำ</button>
           <button class="btn" id="tImport">📂 นำเข้า</button>
           <button class="btn danger" id="tClear">🗑️ ล้าง</button>
-          <button class="btn" id="tPreset" hidden>↺ ชุดของผู้สร้าง</button>
+          <button class="btn" id="tRestore" hidden>↺ รายการล่าสุดของฉัน</button>
           <button class="btn primary" id="tShare">🔗 แชร์วงล้อนี้</button>
           <input type="file" id="fileImport" accept=".txt,.csv,text/plain,text/csv" hidden>
         </div>
@@ -316,16 +317,11 @@ h3{margin:6px 0 0;font-size:15px}
     <div class="share-label" id="shLabel1">🌐 ลิงก์สำหรับทุกคน (ไม่ต้องมีบัญชี)</div>
     <div class="share-box" id="shLinkBox"><input id="shUrl" readonly aria-label="ลิงก์แชร์" onfocus="this.select()"><button class="btn primary" id="shCopy">คัดลอก</button></div>
     <div id="qr" hidden></div>
-    <div id="shBox2" hidden>
-      <div class="share-label">💜 ลิงก์ Claude (เปิดได้เฉพาะคนที่คุณแชร์สิทธิ์ให้ผ่านปุ่ม Share ของ Claude)</div>
-      <div class="share-box"><input id="shUrl2" readonly aria-label="ลิงก์ Claude" onfocus="this.select()"><button class="btn" id="shCopy2">คัดลอก</button></div>
-    </div>
     <div class="actions">
       <button class="btn" id="shClose">ปิด</button>
       <button class="btn primary" id="shShort">✂️ ย่อลิงก์</button>
       <a class="btn" id="shIsgd" target="_blank" rel="noopener" hidden>เปิด is.gd เพื่อย่อ</a>
       <button class="btn" id="shNative" hidden>📤 ส่งต่อ…</button>
-      <button class="btn primary" id="shPublish" hidden>💾 บันทึกให้ทุกคนที่เปิดลิงก์</button>
     </div>
   </div>
 </div>
@@ -378,22 +374,28 @@ function textColorFor(hex) {
 }
 
 /* ---------- state ---------- */
-const DEFAULT_ENTRIES = ''; // the main link starts with a fresh wheel to fill in
+const SAMPLE_ENTRIES = [
+  'ส่วนลด 10%', 'ฟรีค่าชาร์จ 1 เดือน', 'หมวกกันน็อก', 'ลองใหม่อีกครั้ง *2',
+  'บัตรกำนัล 500 บาท', 'ของที่ระลึก', 'ส่วนลด 20%', 'รางวัลใหญ่ 🎁 *0.5'
+].join('\n');
+const DEFAULT_ENTRIES = SAMPLE_ENTRIES;
+const DEFAULT_TITLE = 'Panda EV Wheel';
 const DEFAULT_SETTINGS = { duration:6, autoRemove:false, popup:true, confetti:true, sound:true, lights:true, volume:0.6, palette:'vivid' };
 
 let state = {
-  title: store.get('pw.title', 'Panda EV Wheel'),
-  raw: store.get('pw.raw', DEFAULT_ENTRIES),
+  title: DEFAULT_TITLE,
+  raw: DEFAULT_ENTRIES,
   settings: Object.assign({}, DEFAULT_SETTINGS, store.get('pw.settings', {})),
   history: store.get('pw.history', []),
   theme: store.get('pw.theme', null)
 };
 let logo = store.get('pw.logo', null);
+// the visitor's last own list (offered via the "↺ รายการล่าสุดของฉัน" button, never loaded automatically)
+const savedOwn = { title: store.get('pw.title', DEFAULT_TITLE), raw: store.get('pw.raw', '') };
 
 // Hosted on claude.ai (artifact) vs. standalone (GitHub Pages / local file)
 const IS_HOSTED = !!(window.claude && window.claude.use);
 const PAGES_URL = 'https://black-2005.github.io/Panda_Ev-Wheel/';
-const ARTIFACT_URL = 'https://claude.ai/artifact/NsNYm17Y1cqFxRVSzHCqPC';
 const QR_MAX = 2800; // longer links don't fit in a QR code
 
 /* ---------- wheel <-> link encoding (?w=...) ---------- */
@@ -786,6 +788,7 @@ function setRaw(v, keepEditor) {
   if (!keepEditor) ta.value = v;
   parseEntries(); renderWheel(); draw();
   clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('pw.raw', state.raw), 250);
+  $('#sampleNote').hidden = state.raw !== SAMPLE_ENTRIES;
   onWheelChanged();
 }
 ta.addEventListener('input', () => { if (spinning) return; highlight = -1; setRaw(ta.value, true); });
@@ -835,11 +838,9 @@ $('#hCopy').onclick = async () => {
   try { await navigator.clipboard.writeText(txt); toast('คัดลอกผลแล้ว'); } catch { prompt('คัดลอกข้อความนี้', txt); }
 };
 const hosted = IS_HOSTED;
-let dlApi, dbApi, userApi;
+let dlApi;
 if (hosted) {
   dlApi = window.claude.use('downloads').catch(() => null);
-  dbApi = window.claude.use('db').catch(() => null);
-  userApi = window.claude.use('user').catch(() => null);
 }
 $('#hCsv').onclick = async () => {
   if (!state.history.length) return toast('ยังไม่มีผล');
@@ -916,7 +917,7 @@ async function buildShareUrl() {
 /* Keep shared data in sync whenever the wheel changes:
    - standalone: the address bar always carries the current wheel (?w=...), so copying it from the browser works too
    - hosted on claude.ai: the creator's wheel is auto-saved for everyone who opens the link */
-let urlReady = false, urlTimer, presetReady = false, canPublish = false, presetTimer;
+let urlReady = false, urlTimer;
 function onWheelChanged() {
   if (!hosted) {
     if (!urlReady) return;
@@ -928,9 +929,6 @@ function onWheelChanged() {
         history.replaceState(null, '', location.pathname + (tempMode ? '?w=' + await encodeWheel(wheelPayload()) : ''));
       } catch {}
     }, 400);
-  } else if (presetReady && canPublish) {
-    clearTimeout(presetTimer);
-    presetTimer = setTimeout(() => savePreset(true), 1500);
   }
 }
 let qrLib;
@@ -961,8 +959,7 @@ async function openShare() {
   const url = shortCache[longUrl] || longUrl;
   $('#shUrl').value = url;
   $('#shShort').hidden = url !== longUrl; $('#shIsgd').hidden = true;
-  $('#shNative').hidden = !navigator.share; $('#shPublish').hidden = true;
-  $('#shBox2').hidden = !hosted; $('#shUrl2').value = ARTIFACT_URL;
+  $('#shNative').hidden = !navigator.share;
   const qrOk = url.length <= QR_MAX;
   if (qrOk) renderQR(url); else $('#qr').hidden = true;
   // copy right away so sharing is one tap (still inside the click)
@@ -973,22 +970,7 @@ async function openShare() {
     `<br><span style="font-size:13px">คนที่เปิดจะได้วงล้อชุดนี้ <b>พร้อมหมุนทันที</b> (แบบชั่วคราว ไม่ทับวงล้อของเขาเอง)` +
     (qrOk ? ' · หรือให้สแกน QR' : ' · กด <b>✂️ ย่อลิงก์</b> เพื่อให้ลิงก์สั้นและได้ QR') +
     '<br>ปุ่มย่อลิงก์ใช้บริการฟรีของ is.gd — ลิงก์ (รวมรายการในวงล้อ) จะถูกเก็บไว้ที่ is.gd</span>';
-  if (!hosted) {
-    desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
-    return;
-  }
-  desc.textContent = 'กำลังบันทึก…';
-  await hostedInit;
-  if (canPublish) {
-    $('#shPublish').hidden = false;
-    clearTimeout(presetTimer);
-    const ok = await savePreset(true);
-    desc.innerHTML = (ok
-      ? `✅ <b>บันทึกแล้ว</b> — รายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่า`
-      : `⚠️ <b>ยังบันทึกไม่สำเร็จ</b> ลองกดปุ่มบันทึกด้านล่างอีกครั้ง`) + linkMsg;
-  } else {
-    desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
-  }
+  desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
 }
 /* ---------- short links via is.gd (JSONP: works from a static site without CORS) ---------- */
 const shortCache = {};
@@ -1032,11 +1014,9 @@ async function copyFrom(inp) {
   toast(ok ? 'คัดลอกลิงก์แล้ว 🔗' : 'เลือกลิงก์ไว้แล้ว — กด Ctrl+C หรือกดค้างเพื่อคัดลอก');
 }
 $('#shCopy').onclick = () => copyFrom($('#shUrl'));
-$('#shCopy2').onclick = () => copyFrom($('#shUrl2'));
 $('#shNative').onclick = () => navigator.share({ title: state.title, text: 'มาหมุนวงล้อกัน! 🎡', url: $('#shUrl').value }).catch(() => {});
 
-/* ---------- creator preset (claude.ai hosted view) ---------- */
-let presetData = null;
+/* ---------- apply a whole wheel (shared link / restore) ---------- */
 function syncSettingsUI() {
   ['autoRemove', 'popup', 'confetti', 'sound', 'lights'].forEach(k => { $('#s' + k[0].toUpperCase() + k.slice(1)).checked = !!S[k]; });
   dur.value = S.duration; $('#durLabel').textContent = S.duration + ' วินาที'; vol.value = S.volume;
@@ -1048,51 +1028,6 @@ function applyPreset(d) {
   if (d.settings && typeof d.settings === 'object') { Object.assign(S, DEFAULT_SETTINGS, d.settings); saveSettings(); syncSettingsUI(); }
   highlight = -1;
   if (typeof d.raw === 'string') setRaw(d.raw); else { parseEntries(); renderWheel(); draw(); }
-}
-async function loadPreset() {
-  const db = await dbApi; if (!db) return;
-  let snap;
-  try { snap = await Promise.race([db.doc('config/preset').get(), new Promise((_, rej) => setTimeout(rej, 10000))]); } catch { return; }
-  if (!snap || !snap.exists) return;
-  presetData = snap.data();
-  $('#tPreset').hidden = false;
-  if (presetData.v && presetData.v !== store.get('pw.presetV', null)) {
-    applyPreset(presetData); store.set('pw.presetV', presetData.v);
-    toast('โหลดวงล้อที่ผู้สร้างตั้งไว้แล้ว 🎡');
-  }
-}
-$('#tPreset').onclick = () => { if (presetData) { applyPreset(presetData); toast('กลับไปใช้ชุดของผู้สร้างแล้ว'); } };
-let saving = Promise.resolve(true), lastSavedKey = null;
-function savePreset(quiet) {
-  // one write at a time; skip when nothing changed since the last save
-  saving = saving.then(async () => {
-    const db = await dbApi;
-    if (!db || !canPublish) { if (!quiet) toast('บันทึกไม่ได้ในหน้านี้'); return false; }
-    const key = JSON.stringify([state.title, state.raw, S]);
-    if (key === lastSavedKey) { if (!quiet) toast('บันทึกล่าสุดแล้ว ✓'); return true; }
-    const data = { title: state.title, raw: state.raw, settings: Object.assign({}, S), v: Date.now() };
-    try {
-      await db.doc('config/preset').set(data);
-      lastSavedKey = key; presetData = data; store.set('pw.presetV', data.v); $('#tPreset').hidden = false;
-      if (!quiet) toast('บันทึกแล้ว ✓ กด Share ด้านบนเพื่อส่งลิงก์ได้เลย');
-      return true;
-    } catch (e) { toast('บันทึกวงล้อไม่สำเร็จ' + (e && e.code ? ` (${e.code})` : '')); return false; }
-  });
-  return saving;
-}
-$('#shPublish').onclick = async () => {
-  const btn = $('#shPublish'); btn.disabled = true;
-  lastSavedKey = null; await savePreset(false); btn.disabled = false;
-};
-let hostedInit = Promise.resolve();
-async function initHosted() {
-  await loadPreset();
-  const [u, db] = await Promise.all([userApi, dbApi]);
-  canPublish = !!(db && u && await u.canEdit().catch(() => false));
-  if (presetData) lastSavedKey = JSON.stringify([presetData.title, presetData.raw, Object.assign({}, DEFAULT_SETTINGS, presetData.settings)]);
-  presetReady = true;
-  // creator with nothing saved yet: publish the current wheel right away
-  if (canPublish && !presetData) await savePreset(true);
 }
 async function initStandalone() {
   if (sharedParam) {
@@ -1160,7 +1095,16 @@ parseEntries(); renderHistory();
 new ResizeObserver(resize).observe(canvas);
 resize();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { renderWheel(); draw(); });
-if (hosted) hostedInit = initHosted().catch(() => {}); else initStandalone();
+$('#tRestore').onclick = () => {
+  applyPreset({ title: savedOwn.title, raw: savedOwn.raw });
+  $('#tRestore').hidden = true; toast('เปิดรายการล่าสุดของคุณแล้ว');
+};
+if (!hosted) initStandalone(); else urlReady = true;
+// offer the visitor's last list on the main link (not while viewing a shared wheel)
+if (!sharedParam && savedOwn.raw.trim() && savedOwn.raw !== SAMPLE_ENTRIES) {
+  const n = savedOwn.raw.split(/\r?\n/).filter(l => l.trim() && !l.trim().startsWith('#')).length;
+  $('#tRestore').textContent = `↺ รายการล่าสุดของฉัน (${n})`; $('#tRestore').hidden = false;
+}
 window.addEventListener('resize', () => { if (cc.width) { cc.width = innerWidth * dpr; cc.height = innerHeight * dpr; } });
 })();
 </script>
