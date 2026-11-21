@@ -373,20 +373,25 @@ let state = {
 };
 let logo = store.get('pw.logo', null);
 
-// shared link overrides local data
-(function loadFromHash() {
-  const m = location.hash.match(/^#w=(.+)$/);
-  if (!m) return;
-  try {
-    const json = new TextDecoder().decode(Uint8Array.from(atob(decodeURIComponent(m[1]).replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0)));
-    const d = JSON.parse(json);
-    if (typeof d.t === 'string') state.title = d.t.slice(0, 80);
-    if (typeof d.e === 'string') state.raw = d.e;
-    if (d.s && typeof d.s === 'object') state.settings = Object.assign({}, DEFAULT_SETTINGS, d.s);
-    history.replaceState(null, '', location.pathname + location.search);
-    setTimeout(() => toast('โหลดวงล้อจากลิงก์แชร์แล้ว'), 300);
-  } catch {}
-})();
+// Hosted on claude.ai (artifact) vs. standalone (GitHub Pages / local file)
+const IS_HOSTED = !!(window.claude && window.claude.use);
+
+/* ---------- wheel <-> link encoding (?w=...) ---------- */
+const b64enc = bytes => { let bin = ''; for (const b of bytes) bin += String.fromCharCode(b); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const b64dec = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const pipeBytes = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+async function encodeWheel(obj) {
+  const raw = new TextEncoder().encode(JSON.stringify(obj));
+  if (window.CompressionStream) { try { return 'z' + b64enc(await pipeBytes(raw, new CompressionStream('deflate-raw'))); } catch {} }
+  return b64enc(raw);
+}
+async function decodeWheel(s) {
+  s = decodeURIComponent(s.trim());
+  const bytes = s[0] === 'z' ? await pipeBytes(b64dec(s.slice(1)), new DecompressionStream('deflate-raw')) : b64dec(s);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+const sharedParam = IS_HOSTED ? null
+  : (new URLSearchParams(location.search).get('w') || (location.hash.match(/^#w=(.+)$/) || [])[1] || null);
 
 let entries = [];   // {text, weight, line, color, ink}
 let slices = [];    // {start, end}
@@ -732,6 +737,7 @@ function setRaw(v, keepEditor) {
   if (!keepEditor) ta.value = v;
   parseEntries(); renderWheel(); draw();
   clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('pw.raw', state.raw), 250);
+  onWheelChanged();
 }
 ta.addEventListener('input', () => { if (spinning) return; highlight = -1; setRaw(ta.value, true); });
 const activeLines = () => state.raw.split(/\r?\n/).filter(l => l.trim());
@@ -779,8 +785,7 @@ $('#hCopy').onclick = async () => {
   const txt = state.history.slice().reverse().map((x, i) => `${i + 1}. ${x.text}`).join('\n');
   try { await navigator.clipboard.writeText(txt); toast('คัดลอกผลแล้ว'); } catch { prompt('คัดลอกข้อความนี้', txt); }
 };
-// Hosted on claude.ai (artifact) vs. standalone (GitHub Pages / local file)
-const hosted = !!(window.claude && window.claude.use);
+const hosted = IS_HOSTED;
 let dlApi, dbApi, userApi;
 if (hosted) {
   dlApi = window.claude.use('downloads').catch(() => null);
@@ -814,7 +819,7 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
 
 /* ---------- settings ---------- */
 const S = state.settings;
-function saveSettings() { store.set('pw.settings', S); }
+function saveSettings() { store.set('pw.settings', S); onWheelChanged(); }
 const bindSwitch = (id, key, after) => { const el = $(id); el.checked = !!S[key]; el.onchange = () => { S[key] = el.checked; saveSettings(); after && after(); }; };
 bindSwitch('#sAutoRemove', 'autoRemove');
 bindSwitch('#sPopup', 'popup');
@@ -849,17 +854,31 @@ $('#btnTheme').onclick = () => {
 /* ---------- title ---------- */
 const titleEl = $('#title');
 titleEl.value = state.title; document.title = state.title || 'Panda EV Wheel';
-titleEl.oninput = () => { state.title = titleEl.value; document.title = state.title || 'Panda EV Wheel'; store.set('pw.title', state.title); };
+titleEl.oninput = () => { state.title = titleEl.value; document.title = state.title || 'Panda EV Wheel'; store.set('pw.title', state.title); onWheelChanged(); };
 titleEl.onkeydown = e => { if (e.key === 'Enter') titleEl.blur(); };
 
 /* ---------- share ---------- */
 const shareModal = $('#shareModal');
-function buildShareUrl() {
-  const data = JSON.stringify({ t: state.title, e: state.raw, s: S });
-  const bytes = new TextEncoder().encode(data);
-  let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
-  const b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return location.origin + location.pathname + '#w=' + b64;
+const wheelPayload = () => ({ t: state.title, e: state.raw, s: Object.assign({}, S) });
+async function buildShareUrl() {
+  return location.origin + location.pathname + '?w=' + await encodeWheel(wheelPayload());
+}
+
+/* Keep shared data in sync whenever the wheel changes:
+   - standalone: the address bar always carries the current wheel (?w=...), so copying it from the browser works too
+   - hosted on claude.ai: the creator's wheel is auto-saved for everyone who opens the link */
+let urlReady = false, urlTimer, presetReady = false, canPublish = false, presetTimer;
+function onWheelChanged() {
+  if (!hosted) {
+    if (!urlReady) return;
+    clearTimeout(urlTimer);
+    urlTimer = setTimeout(async () => {
+      try { history.replaceState(null, '', location.pathname + '?w=' + await encodeWheel(wheelPayload())); } catch {}
+    }, 400);
+  } else if (presetReady && canPublish) {
+    clearTimeout(presetTimer);
+    presetTimer = setTimeout(() => savePreset(true), 1500);
+  }
 }
 let qrLib;
 function loadQR() {
@@ -884,7 +903,7 @@ async function openShare() {
   shareModal.classList.add('open');
   const desc = $('#shareDesc');
   if (!hosted) {
-    const url = buildShareUrl();
+    const url = await buildShareUrl();
     $('#shLinkBox').hidden = false; $('#shPublish').hidden = true;
     $('#shNative').hidden = !navigator.share;
     $('#shUrl').value = url;
@@ -894,11 +913,15 @@ async function openShare() {
   }
   $('#shLinkBox').hidden = true; $('#qr').hidden = true; $('#shNative').hidden = true; $('#shPublish').hidden = true;
   desc.textContent = 'กำลังตรวจสอบสิทธิ์…';
-  const [u, db] = await Promise.all([userApi, dbApi]);
-  const can = u ? await u.canEdit().catch(() => false) : false;
-  if (can && db) {
+  await hostedInit;
+  if (canPublish) {
     $('#shPublish').hidden = false;
-    desc.innerHTML = `<b>1.</b> กด <b>บันทึกให้ทุกคนที่เปิดลิงก์</b> เพื่อเก็บรายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่าตอนนี้<br><b>2.</b> กดปุ่ม <b>Share</b> ด้านบนของหน้านี้ แล้วส่งลิงก์ให้คนอื่น — ทุกคนที่เปิดจะเห็นวงล้อชุดนี้พร้อมหมุนทันที<br><span style="font-size:13px">แก้ไขแล้วกดบันทึกซ้ำได้ทุกเมื่อ คนที่เปิดครั้งถัดไปจะได้ชุดใหม่</span>`;
+    clearTimeout(presetTimer);
+    const ok = await savePreset(true);
+    desc.innerHTML = (ok
+      ? `✅ <b>บันทึกวงล้อนี้ให้ทุกคนแล้ว</b> (รายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่า)`
+      : `⚠️ <b>ยังบันทึกไม่สำเร็จ</b> ลองกดปุ่มบันทึกด้านล่างอีกครั้ง`) +
+      `<br>กดปุ่ม <b>Share</b> ด้านบนของหน้านี้ แล้วส่งลิงก์ให้คนอื่น — ทุกคนที่เปิดจะเห็นวงล้อชุดนี้พร้อมหมุนทันที<br><span style="font-size:13px">ต่อจากนี้เมื่อคุณแก้รายการ ระบบจะบันทึกให้อัตโนมัติ</span>`;
   } else {
     desc.innerHTML = 'เฉพาะผู้สร้างวงล้อเท่านั้นที่บันทึกชุดรายการให้ทุกคนได้ · รายการที่คุณแก้จะถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง';
   }
@@ -942,18 +965,48 @@ async function loadPreset() {
   }
 }
 $('#tPreset').onclick = () => { if (presetData) { applyPreset(presetData); toast('กลับไปใช้ชุดของผู้สร้างแล้ว'); } };
+let saving = Promise.resolve(true), lastSavedKey = null;
+function savePreset(quiet) {
+  // one write at a time; skip when nothing changed since the last save
+  saving = saving.then(async () => {
+    const db = await dbApi;
+    if (!db || !canPublish) { if (!quiet) toast('บันทึกไม่ได้ในหน้านี้'); return false; }
+    const key = JSON.stringify([state.title, state.raw, S]);
+    if (key === lastSavedKey) { if (!quiet) toast('บันทึกล่าสุดแล้ว ✓'); return true; }
+    const data = { title: state.title, raw: state.raw, settings: Object.assign({}, S), v: Date.now() };
+    try {
+      await db.doc('config/preset').set(data);
+      lastSavedKey = key; presetData = data; store.set('pw.presetV', data.v); $('#tPreset').hidden = false;
+      if (!quiet) toast('บันทึกแล้ว ✓ กด Share ด้านบนเพื่อส่งลิงก์ได้เลย');
+      return true;
+    } catch (e) { toast('บันทึกวงล้อไม่สำเร็จ' + (e && e.code ? ` (${e.code})` : '')); return false; }
+  });
+  return saving;
+}
 $('#shPublish').onclick = async () => {
-  const db = await dbApi, btn = $('#shPublish');
-  if (!db) return toast('บันทึกไม่ได้ในหน้านี้');
-  btn.disabled = true;
-  const data = { title: state.title, raw: state.raw, settings: Object.assign({}, S), v: Date.now() };
-  try {
-    await db.doc('config/preset').set(data);
-    presetData = data; store.set('pw.presetV', data.v); $('#tPreset').hidden = false;
-    toast('บันทึกแล้ว ✓ กด Share ด้านบนเพื่อส่งลิงก์ได้เลย');
-  } catch (e) { toast('บันทึกไม่สำเร็จ' + (e && e.code ? ` (${e.code})` : '')); }
-  finally { btn.disabled = false; }
+  const btn = $('#shPublish'); btn.disabled = true;
+  lastSavedKey = null; await savePreset(false); btn.disabled = false;
 };
+let hostedInit = Promise.resolve();
+async function initHosted() {
+  await loadPreset();
+  const [u, db] = await Promise.all([userApi, dbApi]);
+  canPublish = !!(db && u && await u.canEdit().catch(() => false));
+  if (presetData) lastSavedKey = JSON.stringify([presetData.title, presetData.raw, Object.assign({}, DEFAULT_SETTINGS, presetData.settings)]);
+  presetReady = true;
+  // creator with nothing saved yet: publish the current wheel right away
+  if (canPublish && !presetData) await savePreset(true);
+}
+async function initStandalone() {
+  if (sharedParam) {
+    try {
+      const d = await decodeWheel(sharedParam);
+      applyPreset({ title: d.t, raw: d.e, settings: d.s });
+      toast('โหลดวงล้อจากลิงก์แชร์แล้ว 🎡');
+    } catch { toast('ลิงก์แชร์ไม่สมบูรณ์ — ลองคัดลอกลิงก์ใหม่อีกครั้ง'); }
+  }
+  urlReady = true; onWheelChanged();
+}
 
 /* ---------- focus / fullscreen ---------- */
 function toggleFocus() {
@@ -995,7 +1048,7 @@ parseEntries(); renderHistory();
 new ResizeObserver(resize).observe(canvas);
 resize();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { renderWheel(); draw(); });
-if (hosted) loadPreset();
+if (hosted) hostedInit = initHosted().catch(() => {}); else initStandalone();
 window.addEventListener('resize', () => { if (cc.width) { cc.width = innerWidth * dpr; cc.height = innerHeight * dpr; } });
 })();
 </script>
