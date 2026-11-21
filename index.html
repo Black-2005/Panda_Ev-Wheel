@@ -65,7 +65,7 @@ main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padd
 .app.focus aside{display:none}
 .stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-width:0;min-height:0}
 .wheel-wrap{
-  position:relative;width:min(100%,calc(100vh - 190px),780px);width:min(100%,calc(100dvh - 190px),780px);
+  position:relative;width:min(100%,calc(100vh - 250px),780px);width:min(100%,calc(100dvh - 250px),780px);
   aspect-ratio:1;min-width:260px;user-select:none;touch-action:none;
 }
 .app.focus .wheel-wrap{width:min(100%,calc(100dvh - 150px),980px)}
@@ -179,7 +179,7 @@ h3{margin:6px 0 0;font-size:15px}
 @media (max-width:900px){
   main{grid-template-columns:minmax(0,1fr)}
   aside{max-height:none}
-  .wheel-wrap{width:min(100%,92vw,calc(100dvh - 210px));min-width:240px}
+  .wheel-wrap{width:min(100%,92vw,calc(100dvh - 270px));min-width:240px}
   textarea#entries{min-height:220px}
 }
 @media (max-width:420px){
@@ -219,6 +219,7 @@ h3{margin:6px 0 0;font-size:15px}
         <button class="hub" id="hub" aria-label="หมุนวงล้อ"><span id="hubLabel">หมุน!</span></button>
       </div>
       <div class="result-line" id="resultLine" aria-live="polite">กดปุ่ม <b>หมุน!</b> คลิกที่วงล้อ หรือปัดเพื่อหมุน</div>
+      <button class="btn primary big" id="stShare">🔗 แชร์วงล้อนี้</button>
       <div class="hint">คีย์ลัด: <kbd>Space</kbd> หมุน · <kbd>F</kbd> เต็มจอ · <kbd>Esc</kbd> ปิดหน้าต่าง</div>
     </section>
 
@@ -921,7 +922,7 @@ async function openShare() {
     desc.innerHTML = (ok
       ? `✅ <b>บันทึกวงล้อนี้ให้ทุกคนแล้ว</b> (รายการ ${entries.length} ช่อง ชื่อวงล้อ และการตั้งค่า)`
       : `⚠️ <b>ยังบันทึกไม่สำเร็จ</b> ลองกดปุ่มบันทึกด้านล่างอีกครั้ง`) +
-      `<br>กดปุ่ม <b>Share</b> ด้านบนของหน้านี้ แล้วส่งลิงก์ให้คนอื่น — ทุกคนที่เปิดจะเห็นวงล้อชุดนี้พร้อมหมุนทันที<br><span style="font-size:13px">ต่อจากนี้เมื่อคุณแก้รายการ ระบบจะบันทึกให้อัตโนมัติ</span>`;
+      `<br><b>ขั้นต่อไป:</b> เปิดลิงก์วงล้อนี้ในเว็บเบราว์เซอร์ที่ claude.ai แล้วกดปุ่ม <b>Share</b> ที่แถบด้านบนของหน้า (นอกกรอบวงล้อ) เพื่อเปิดสิทธิ์และคัดลอกลิงก์ส่งให้คนอื่น — ทุกคนที่เปิดจะเห็นวงล้อชุดนี้พร้อมหมุนทันที<br><span style="font-size:13px">ถ้าไม่เห็นปุ่ม Share (เช่น เปิดในแอปมือถือ) ให้ใช้ลิงก์ GitHub Pages แทน · เมื่อคุณแก้รายการ ระบบจะบันทึกให้อัตโนมัติ</span>`;
   } else {
     desc.innerHTML = 'เฉพาะผู้สร้างวงล้อเท่านั้นที่บันทึกชุดรายการให้ทุกคนได้ · รายการที่คุณแก้จะถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง';
   }
@@ -929,6 +930,7 @@ async function openShare() {
 function closeShare() { shareModal.classList.remove('open'); }
 $('#btnShare').onclick = openShare;
 $('#tShare').onclick = openShare;
+$('#stShare').onclick = openShare;
 $('#shClose').onclick = closeShare;
 shareModal.addEventListener('click', e => { if (e.target === shareModal) closeShare(); });
 $('#shCopy').onclick = async () => {
