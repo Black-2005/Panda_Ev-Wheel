@@ -169,6 +169,9 @@ h3{margin:6px 0 0;font-size:15px}
   padding:10px 18px;border-radius:12px;z-index:70;transition:.25s;font-size:14px;max-width:calc(100% - 32px);text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 [hidden]{display:none!important}
+.temp-banner{margin:0 16px 12px;padding:10px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--accent);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px}
+.temp-actions{display:flex;gap:6px;flex-wrap:wrap}
 .share-box{display:flex;gap:6px;margin:4px 0 12px}
 .share-box input{flex:1;min-width:0;border:1px solid var(--border);background:var(--field);border-radius:10px;padding:8px 10px;font-size:13px}
 #qr{background:#fff;padding:10px;border-radius:14px;width:max-content;margin:0 auto 14px}
@@ -208,6 +211,10 @@ h3{margin:6px 0 0;font-size:15px}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     </div>
   </header>
+  <div class="temp-banner" id="tempBanner" hidden>
+    <span>👀 วงล้อที่แชร์มา (ชั่วคราว — ไม่บันทึกทับวงล้อของคุณ)</span>
+    <span class="temp-actions"><button class="btn" id="tempKeep">💾 เก็บเป็นของฉัน</button><a class="btn primary" id="tempMine">✨ สร้างวงล้อของฉัน</a></span>
+  </div>
 
   <main>
     <section class="stage">
@@ -233,7 +240,7 @@ h3{margin:6px 0 0;font-size:15px}
       </div>
 
       <div class="pane active" id="pane-entries">
-        <textarea id="entries" spellcheck="false" aria-label="รายการในวงล้อ หนึ่งบรรทัดต่อหนึ่งรายการ"></textarea>
+        <textarea id="entries" spellcheck="false" placeholder="พิมพ์รายการ หนึ่งบรรทัดต่อหนึ่งช่อง เช่น&#10;สมชาย&#10;สมหญิง&#10;รางวัลใหญ่ *0.5" aria-label="รายการในวงล้อ หนึ่งบรรทัดต่อหนึ่งรายการ"></textarea>
         <div class="tools">
           <button class="btn" id="tShuffle">🔀 สลับ</button>
           <button class="btn" id="tSort">🔤 เรียง</button>
@@ -306,16 +313,7 @@ h3{margin:6px 0 0;font-size:15px}
   <div class="card">
     <div class="label" id="shTitle">🔗 แชร์วงล้อนี้</div>
     <div class="share-desc" id="shareDesc"></div>
-    <div class="share-desc" id="shLong" hidden>
-      <b>รายการยาวเกินกว่าจะใส่ในลิงก์</b> (แอปแชทจะตัดข้อมูลหาย) — ทำตามนี้ครั้งเดียว แล้วส่งลิงก์สั้นได้เลย:
-      <ol style="margin:6px 0 0;padding-left:22px;display:flex;flex-direction:column;gap:6px">
-        <li><button class="btn" id="shCopyList">📋 คัดลอกรายการ</button></li>
-        <li><a class="btn" id="shEditGh" target="_blank" rel="noopener">✏️ เปิดไฟล์ wheel.txt บน GitHub</a><br>
-          ลบข้อความเดิมทั้งหมด วางรายการที่คัดลอก แล้วกด <b>Commit changes</b></li>
-        <li>รอ 1–2 นาที แล้วส่ง <b>ลิงก์สั้น</b> ด้านล่าง — คนที่เปิดจะได้รายการนี้ทันที</li>
-      </ol>
-    </div>
-    <div class="share-label" id="shLabel1" hidden>🌐 ลิงก์สำหรับทุกคน (ไม่ต้องมีบัญชี)</div>
+    <div class="share-label" id="shLabel1">🌐 ลิงก์สำหรับทุกคน (ไม่ต้องมีบัญชี)</div>
     <div class="share-box" id="shLinkBox"><input id="shUrl" readonly aria-label="ลิงก์แชร์" onfocus="this.select()"><button class="btn primary" id="shCopy">คัดลอก</button></div>
     <div id="qr" hidden></div>
     <div id="shBox2" hidden>
@@ -340,9 +338,12 @@ h3{margin:6px 0 0;font-size:15px}
 const $ = s => document.querySelector(s);
 const TAU = Math.PI * 2;
 const mod = (a, n) => ((a % n) + n) % n;
+let tempMode = false;
+const TEMP_KEYS = /^pw\.(raw|title|settings|history)$/;
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  // while viewing a shared wheel (temporary), the viewer's own saved wheel is left untouched
+  set(k, v) { if (tempMode && TEMP_KEYS.test(k)) return; try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   del(k) { try { localStorage.removeItem(k); } catch {} }
 };
 // cryptographically fair random in [0,1)
@@ -375,10 +376,7 @@ function textColorFor(hex) {
 }
 
 /* ---------- state ---------- */
-const DEFAULT_ENTRIES = [
-  'ส่วนลด 10%', 'ฟรีค่าชาร์จ 1 เดือน', 'หมวกกันน็อก', 'ลองใหม่อีกครั้ง *2',
-  'บัตรกำนัล 500 บาท', 'ของที่ระลึก', 'ส่วนลด 20%', 'รางวัลใหญ่ 🎁 *0.5'
-].join('\n');
+const DEFAULT_ENTRIES = ''; // the main link starts with a fresh wheel to fill in
 const DEFAULT_SETTINGS = { duration:6, autoRemove:false, popup:true, confetti:true, sound:true, lights:true, volume:0.6, palette:'vivid' };
 
 let state = {
@@ -394,22 +392,50 @@ let logo = store.get('pw.logo', null);
 const IS_HOSTED = !!(window.claude && window.claude.use);
 const PAGES_URL = 'https://black-2005.github.io/Panda_Ev-Wheel/';
 const ARTIFACT_URL = 'https://claude.ai/artifact/NsNYm17Y1cqFxRVSzHCqPC';
-const GH_EDIT_URL = 'https://github.com/Black-2005/Panda_Ev-Wheel/edit/main/wheel.txt';
-const MAX_LINK = 1800; // longer links get cut by chat apps and don't fit in a QR code
+const QR_MAX = 2800; // longer links don't fit in a QR code
 
 /* ---------- wheel <-> link encoding (?w=...) ---------- */
 const b64enc = bytes => { let bin = ''; for (const b of bytes) bin += String.fromCharCode(b); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
 const b64dec = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 const pipeBytes = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+/* Compact text packing before compression: Thai (U+0E00–0E7F) and Lao (U+0E80–0EFF) letters take 1 byte instead of 3.
+   0x01 = switch to Lao page, 0x02 = Thai page, 0x03 n <n UTF-8 bytes> = any other character; ASCII as is. */
+function packText(s) {
+  const out = []; let page = 0;
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    const p = c >= 0xE80 && c <= 0xEFF ? 1 : c >= 0xE00 && c <= 0xE7F ? 2 : 0;
+    if (p) { if (p !== page) { out.push(p); page = p; } out.push(0x80 + c - (p === 1 ? 0xE80 : 0xE00)); }
+    else if (c < 0x80) { if (c > 3) out.push(c); }
+    else { const b = new TextEncoder().encode(ch); out.push(3, b.length, ...b); }
+  }
+  return new Uint8Array(out);
+}
+function unpackText(bytes) {
+  let s = '', page = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b === 1 || b === 2) page = b;
+    else if (b === 3) { const n = bytes[i + 1]; s += new TextDecoder().decode(bytes.slice(i + 2, i + 2 + n)); i += 1 + n; }
+    else if (b >= 0x80) s += String.fromCodePoint(b - 0x80 + (page === 1 ? 0xE80 : 0xE00));
+    else s += String.fromCharCode(b);
+  }
+  return s;
+}
 async function encodeWheel(obj) {
-  const raw = new TextEncoder().encode(JSON.stringify(obj));
-  if (window.CompressionStream) { try { return 'z' + b64enc(await pipeBytes(raw, new CompressionStream('deflate-raw'))); } catch {} }
-  return b64enc(raw);
+  const s = {}; // only settings that differ from the defaults
+  for (const k in obj.s || {}) if (obj.s[k] !== DEFAULT_SETTINGS[k]) s[k] = obj.s[k];
+  const json = JSON.stringify({ t: obj.t, e: obj.e, s });
+  if (window.CompressionStream) { try { return 'y' + b64enc(await pipeBytes(packText(json), new CompressionStream('deflate-raw'))); } catch {} }
+  return b64enc(new TextEncoder().encode(json));
 }
 async function decodeWheel(s) {
   s = decodeURIComponent(s.trim());
-  const bytes = s[0] === 'z' ? await pipeBytes(b64dec(s.slice(1)), new DecompressionStream('deflate-raw')) : b64dec(s);
-  return JSON.parse(new TextDecoder().decode(bytes));
+  let json;
+  if (s[0] === 'y') json = unpackText(await pipeBytes(b64dec(s.slice(1)), new DecompressionStream('deflate-raw')));
+  else if (s[0] === 'z') json = new TextDecoder().decode(await pipeBytes(b64dec(s.slice(1)), new DecompressionStream('deflate-raw')));
+  else json = new TextDecoder().decode(b64dec(s));
+  return JSON.parse(json);
 }
 const sharedParam = IS_HOSTED ? null
   : (new URLSearchParams(location.search).get('w') || (location.hash.match(/^#w=(.+)$/) || [])[1] || null);
@@ -477,7 +503,7 @@ function renderWheel() {
     c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fillStyle = '#c9cce0'; c.fill();
     c.fillStyle = '#5b5f7a'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.font = `600 ${R * 0.07}px Prompt, sans-serif`;
-    c.fillText('เพิ่มรายการทางขวา ➜', 0, -R * 0.28);
+    c.fillText('ใส่รายการในช่อง “รายการ”', 0, -R * 0.28);
     c.restore(); return;
   }
   entries.forEach((e, i) => {
@@ -895,9 +921,9 @@ function onWheelChanged() {
     clearTimeout(urlTimer);
     urlTimer = setTimeout(async () => {
       try {
-        const code = await encodeWheel(wheelPayload());
-        // a very long list would make an unusable address; keep the address clean instead
-        history.replaceState(null, '', location.pathname + (code.length + 60 <= MAX_LINK ? '?w=' + code : ''));
+        // only a shared (temporary) wheel keeps its data in the address, so a reload keeps it;
+        // the main link stays clean so it always opens the visitor's own wheel
+        history.replaceState(null, '', location.pathname + (tempMode ? '?w=' + await encodeWheel(wheelPayload()) : ''));
       } catch {}
     }, 400);
   } else if (presetReady && canPublish) {
@@ -929,17 +955,19 @@ async function openShare() {
   const desc = $('#shareDesc');
   // Hosted on claude.ai the page can't read its own address, so it offers the public copy (GitHub Pages)
   const base = hosted || location.protocol === 'file:' ? PAGES_URL : location.origin + location.pathname;
-  const fullUrl = base + '?w=' + await encodeWheel(wheelPayload());
-  const long = fullUrl.length > MAX_LINK;
-  const url = long ? base : fullUrl;
-  $('#shLong').hidden = !long;
-  $('#shLabel1').hidden = false;
-  $('#shLabel1').textContent = long ? '🔗 ลิงก์สั้น (ส่งหลังทำขั้นตอนด้านบนแล้ว)' : '🌐 ลิงก์สำหรับทุกคน (ไม่ต้องมีบัญชี)';
-  $('#shLinkBox').hidden = false; $('#shUrl').value = url;
+  const url = base + '?w=' + await encodeWheel(wheelPayload());
+  $('#shUrl').value = url;
   $('#shNative').hidden = !navigator.share; $('#shPublish').hidden = true;
   $('#shBox2').hidden = !hosted; $('#shUrl2').value = ARTIFACT_URL;
-  renderQR(url);
-  const linkMsg = long ? '' : `<br>คัดลอก <b>ลิงก์สำหรับทุกคน</b> ด้านล่างไปส่งได้เลย หรือให้สแกน QR — คนที่เปิดจะได้วงล้อชุดนี้ <b>พร้อมหมุนทันที</b>`;
+  const qrOk = url.length <= QR_MAX;
+  if (qrOk) renderQR(url); else $('#qr').hidden = true;
+  // copy right away so sharing is one tap (still inside the click)
+  let copied = false;
+  try { await navigator.clipboard.writeText(url); copied = true; } catch {}
+  const linkMsg = `<br>${copied ? '✅ <b>คัดลอกลิงก์ให้แล้ว</b> — วางในแชทส่งได้เลย' : 'กด <b>คัดลอก</b> แล้ววางในแชทส่งได้เลย'}` +
+    (navigator.share ? ' หรือกด <b>📤 ส่งต่อ…</b> เพื่อเลือกแอป' : '') +
+    `<br><span style="font-size:13px">คนที่เปิดจะได้วงล้อชุดนี้ <b>พร้อมหมุนทันที</b> (แบบชั่วคราว ไม่ทับวงล้อของเขาเอง)` +
+    (qrOk ? ' · หรือให้สแกน QR' : ' · รายการยาว จึงไม่มี QR') + '</span>';
   if (!hosted) {
     desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
     return;
@@ -957,16 +985,6 @@ async function openShare() {
     desc.innerHTML = `วงล้อนี้มี <b>รายการ ${entries.length} ช่อง</b>` + linkMsg;
   }
 }
-$('#shEditGh').href = GH_EDIT_URL;
-$('#shCopyList').onclick = async () => {
-  const text = `ชื่อวงล้อ: ${state.title}\n` + state.raw.split(/\r?\n/).filter(l => l.trim()).join('\n') + '\n';
-  try { await navigator.clipboard.writeText(text); toast(`คัดลอกรายการ ${entries.length} ช่องแล้ว 📋`); return; } catch {}
-  const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
-  document.body.appendChild(t); t.select();
-  let ok = false; try { ok = document.execCommand('copy'); } catch {}
-  t.remove();
-  toast(ok ? `คัดลอกรายการ ${entries.length} ช่องแล้ว 📋` : 'คัดลอกไม่ได้ — ให้คัดลอกจากช่องรายการแทน');
-};
 function closeShare() { shareModal.classList.remove('open'); }
 $('#btnShare').onclick = openShare;
 $('#tShare').onclick = openShare;
@@ -1046,40 +1064,27 @@ async function initStandalone() {
   if (sharedParam) {
     try {
       const d = await decodeWheel(sharedParam);
+      // shared wheel = temporary view: nothing here overwrites this visitor's own saved wheel
+      tempMode = true;
+      state.history = []; renderHistory();
       applyPreset({ title: d.t, raw: d.e, settings: d.s });
-      toast('โหลดวงล้อจากลิงก์แชร์แล้ว 🎡');
-    } catch { toast('ลิงก์แชร์ไม่สมบูรณ์ — ลองคัดลอกลิงก์ใหม่อีกครั้ง'); }
+      $('#tempBanner').hidden = false;
+      toast('เปิดวงล้อที่แชร์มาแล้ว 🎡');
+    } catch {
+      toast('ลิงก์แชร์ไม่สมบูรณ์ — ขอให้ผู้ส่งกดแชร์แล้วส่งลิงก์ใหม่');
+      try { history.replaceState(null, '', location.pathname); } catch {}
+    }
   }
-  else await loadWheelFile();
   urlReady = true; onWheelChanged();
 }
-/* wheel.txt (or lists/<name>.txt via ?l=name) published with the site: lets a long list travel behind a short link */
-function parseWheelFile(text) {
-  let title = null;
-  const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => {
-    const m = l.match(/^\s*(?:ชื่อวงล้อ|title)\s*:\s*(.*)$/i);
-    if (m && title === null) { title = m[1].trim(); return false; }
-    return true;
-  });
-  return { title, raw: lines.join('\n').trim() };
-}
-async function loadWheelFile() {
-  const name = new URLSearchParams(location.search).get('l');
-  const path = name && /^[\w\-]{1,60}$/.test(name) ? `lists/${name}.txt` : 'wheel.txt';
-  let text;
-  try {
-    const r = await fetch(path + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) return;
-    text = await r.text();
-  } catch { return; }
-  const d = parseWheelFile(text);
-  if (!d.raw.split('\n').some(l => l.trim() && !l.trim().startsWith('#'))) return; // no entries in the file
-  const key = path + ':' + text.length + ':' + Array.from(text).reduce((h, c) => (h * 31 + c.codePointAt(0)) | 0, 7);
-  if (!name && key === store.get('pw.fileKey', null)) return; // already applied; keep this viewer's own edits
-  applyPreset({ title: d.title || undefined, raw: d.raw });
-  store.set('pw.fileKey', key);
-  toast('โหลดรายการของวงล้อนี้แล้ว 🎡');
-}
+$('#tempMine').href = location.pathname;
+$('#tempKeep').onclick = () => {
+  // keep this shared wheel as the visitor's own
+  tempMode = false;
+  store.set('pw.title', state.title); store.set('pw.raw', state.raw); store.set('pw.settings', S); store.set('pw.history', state.history);
+  $('#tempBanner').hidden = true; onWheelChanged();
+  toast('บันทึกเป็นวงล้อของคุณแล้ว ✓');
+};
 
 /* ---------- focus / fullscreen ---------- */
 function toggleFocus() {
