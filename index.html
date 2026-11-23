@@ -65,7 +65,7 @@ main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padd
 .app.focus aside{display:none}
 .stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-width:0;min-height:0}
 .wheel-wrap{
-  position:relative;width:min(100%,calc(100vh - 250px),780px);width:min(100%,calc(100dvh - 250px),780px);
+  position:relative;width:min(100%,calc(100vh - 310px),780px);width:min(100%,calc(100dvh - 310px),780px);
   aspect-ratio:1;min-width:260px;user-select:none;touch-action:none;
 }
 .app.focus .wheel-wrap{width:min(100%,calc(100dvh - 150px),980px)}
@@ -88,6 +88,14 @@ main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padd
 .hub:active{transform:translate(-50%,-50%) scale(.96)}
 .hub img{width:100%;height:100%;object-fit:cover}
 .hub.busy{pointer-events:none}
+.now{display:flex;align-items:center;justify-content:center;gap:10px;max-width:min(100%,780px);min-height:46px;
+  padding:6px 18px;border-radius:14px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);
+  font-size:clamp(18px,2.6vw,26px);font-weight:700;text-align:center}
+.now[hidden]{display:none}
+.now-dot{width:14px;height:14px;border-radius:50%;flex:none}
+.now-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.tip{position:absolute;z-index:4;pointer-events:none;transform:translate(-50%,calc(-100% - 12px));background:var(--text);color:var(--bg);
+  padding:5px 10px;border-radius:8px;font-size:14px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .result-line{min-height:34px;font-size:clamp(16px,2vw,22px);text-align:center;color:var(--muted)}
 .result-line b{color:var(--text)}
 .hint{font-size:13px;color:var(--muted);text-align:center}
@@ -184,7 +192,7 @@ h3{margin:6px 0 0;font-size:15px}
 @media (max-width:900px){
   main{grid-template-columns:minmax(0,1fr)}
   aside{max-height:none}
-  .wheel-wrap{width:min(100%,92vw,calc(100dvh - 270px));min-width:240px}
+  .wheel-wrap{width:min(100%,92vw,calc(100dvh - 330px));min-width:240px}
   textarea#entries{min-height:220px}
 }
 @media (max-width:420px){
@@ -218,7 +226,9 @@ h3{margin:6px 0 0;font-size:15px}
 
   <main>
     <section class="stage">
+      <div class="now" id="now" aria-live="off"><span class="now-dot" id="nowDot"></span><span class="now-text" id="nowText"></span></div>
       <div class="wheel-wrap" id="wrap">
+        <div class="tip" id="tip" hidden></div>
         <svg class="pointer" id="pointer" viewBox="0 0 60 80" aria-hidden="true">
           <defs><linearGradient id="pg" x1="0" x2="1"><stop offset="0" stop-color="#ff5d5d"/><stop offset="1" stop-color="#d63031"/></linearGradient></defs>
           <path d="M30 78 L4 22 A28 28 0 1 1 56 22 Z" fill="url(#pg)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
@@ -516,9 +526,9 @@ function renderWheel() {
     c.fillStyle = e.color; c.fill();
     if (entries.length > 1) { c.lineWidth = Math.max(1, R * 0.006); c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke(); }
     // label
-    const arcLen = sweep * r * 0.62;
-    let fs = Math.min(R * 0.085, arcLen * 0.62);
-    if (fs < 6 * dpr) return;
+    const arcLen = sweep * r * 0.8; // text is drawn along the outer part of the slice
+    let fs = Math.min(R * 0.085, arcLen * 0.85);
+    if (fs < 5 * dpr) return; // too thin to read: the name shows in the box above the wheel instead
     c.save(); c.rotate(start + sweep / 2);
     c.fillStyle = e.ink; c.textAlign = 'right'; c.textBaseline = 'middle';
     c.font = `600 ${fs}px Prompt, sans-serif`;
@@ -540,8 +550,19 @@ function renderWheel() {
   c.beginPath(); c.arc(0, 0, r, 0, TAU); c.fillStyle = g; c.fill();
   c.restore();
 }
+let nowIdx = -2;
+function updateNow() {
+  const box = $('#now');
+  if (!entries.length) { box.hidden = true; nowIdx = -2; return; }
+  box.hidden = false;
+  const i = indexAtPointer(rot);
+  if (i === nowIdx) return;
+  nowIdx = i;
+  $('#nowText').textContent = entries[i].text; $('#nowDot').style.background = entries[i].color;
+}
 function draw() {
   if (!size) return;
+  updateNow();
   const R = size / 2, r = R * 0.9;
   ctx.clearRect(0, 0, size, size);
   // rim
@@ -613,8 +634,8 @@ function fanfare() {
 
 /* ---------- spin logic ---------- */
 const pointerEl = $('#pointer');
-function indexAtPointer(r) {
-  const a = mod(-Math.PI / 2 - r, TAU);
+function indexAtPointer(r) { return indexAtAngle(mod(-Math.PI / 2 - r, TAU)); }
+function indexAtAngle(a) {
   let lo = 0, hi = slices.length - 1;
   while (lo < hi) { const mid = (lo + hi) >> 1; if (slices[mid].end <= a) lo = mid + 1; else hi = mid; }
   return lo;
@@ -752,8 +773,18 @@ canvas.addEventListener('pointerdown', e => {
   drag = { cx, cy, a, startRot: rot, last: a, lastT: performance.now(), v: 0, moved: 0 };
   canvas.setPointerCapture(e.pointerId);
 });
+const tip = $('#tip');
 canvas.addEventListener('pointermove', e => {
-  if (!drag) return;
+  if (!drag) {
+    if (e.pointerType !== 'mouse' || spinning || !entries.length) { tip.hidden = true; return; }
+    const b = canvas.getBoundingClientRect(), x = e.clientX - b.left - b.width / 2, y = e.clientY - b.top - b.height / 2;
+    const d = Math.hypot(x, y) / (b.width / 2);
+    if (d > 0.9 || d < 0.1) { tip.hidden = true; return; }
+    const i = indexAtAngle(mod(Math.atan2(y, x) - rot, TAU));
+    tip.textContent = entries[i].text; tip.style.left = (e.clientX - b.left) + 'px'; tip.style.top = (e.clientY - b.top) + 'px'; tip.hidden = false;
+    return;
+  }
+  tip.hidden = true;
   const a = Math.atan2(e.clientY - drag.cy, e.clientX - drag.cx);
   let d = a - drag.last; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU;
   const now = performance.now(), dt = Math.max(1, now - drag.lastT);
@@ -768,6 +799,7 @@ canvas.addEventListener('pointerup', () => {
   else if (Math.abs(v) > 0.004) spin(1 + Math.min(0.25, Math.abs(v) * 8)); // flick
 });
 canvas.addEventListener('pointercancel', () => { drag = null; });
+canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
 $('#hub').onclick = () => spin();
 
 document.addEventListener('keydown', e => {
@@ -786,7 +818,7 @@ let saveTimer;
 function setRaw(v, keepEditor) {
   state.raw = v;
   if (!keepEditor) ta.value = v;
-  parseEntries(); renderWheel(); draw();
+  nowIdx = -2; parseEntries(); renderWheel(); draw();
   clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set('pw.raw', state.raw), 250);
   $('#sampleNote').hidden = state.raw !== SAMPLE_ENTRIES;
   onWheelChanged();
