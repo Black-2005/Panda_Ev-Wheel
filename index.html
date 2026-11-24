@@ -65,12 +65,14 @@ main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padd
 .app.focus aside{display:none}
 .stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-width:0;min-height:0}
 .wheel-wrap{
-  position:relative;width:min(100%,calc(100vh - 310px),780px);width:min(100%,calc(100dvh - 310px),780px);
-  aspect-ratio:1;min-width:260px;user-select:none;touch-action:none;
+  position:relative;width:min(100%,calc(100vh - 310px),780px);width:min(100%,calc(100svh - 310px),780px);
+  aspect-ratio:1;min-width:260px;user-select:none;touch-action:pan-y;
 }
-.app.focus .wheel-wrap{width:min(100%,calc(100dvh - 150px),980px)}
-#wheel{width:100%;height:100%;display:block;cursor:grab;border-radius:50%;
-  filter:drop-shadow(0 18px 30px rgba(20,20,60,.28))}
+.app.focus .wheel-wrap{width:min(100%,calc(100svh - 150px),980px)}
+/* the disc is drawn once and rotated by the GPU; the rim + lights sit still underneath */
+.wheel-wrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#rim{border-radius:50%;filter:drop-shadow(0 18px 30px rgba(20,20,60,.28))}
+#wheel{cursor:grab;will-change:transform;transform-origin:50% 50%}
 #wheel:active{cursor:grabbing}
 .pointer{
   position:absolute;left:50%;top:-1.5%;width:9%;min-width:30px;transform:translateX(-50%) rotate(0deg);
@@ -208,7 +210,7 @@ h3{margin:6px 0 0;font-size:15px}
 @media (max-width:900px){
   main{grid-template-columns:minmax(0,1fr)}
   aside{max-height:none}
-  .wheel-wrap{width:min(100%,92vw,calc(100dvh - 330px));min-width:240px}
+  .wheel-wrap{width:min(100%,92vw,calc(100svh - 330px));min-width:240px}
   textarea#entries{min-height:220px}
 }
 @media (max-width:420px){
@@ -250,6 +252,7 @@ h3{margin:6px 0 0;font-size:15px}
           <path d="M30 78 L4 22 A28 28 0 1 1 56 22 Z" fill="url(#pg)" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
           <circle cx="30" cy="26" r="9" fill="#fff"/>
         </svg>
+        <canvas id="rim" aria-hidden="true"></canvas>
         <canvas id="wheel" aria-label="วงล้อสุ่ม คลิกเพื่อหมุน" role="img"></canvas>
         <button class="hub" id="hub" aria-label="หมุนวงล้อ"><span id="hubLabel">หมุน!</span></button>
       </div>
@@ -543,12 +546,17 @@ const canvas = $('#wheel'), ctx = canvas.getContext('2d');
 const off = document.createElement('canvas'), octx = off.getContext('2d');
 let rot = 0, size = 0, dpr = 1, lightPhase = 0, spinning = false, highlight = -1;
 
+const rimCanvas = $('#rim'), rctx = rimCanvas.getContext('2d'), wrapEl = $('#wrap');
+let discDirty = true, drawnHL = -2, drawnLights = '';
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-  const w = canvas.clientWidth;
+  const w = wrapEl.clientWidth;
   if (!w) return;
-  size = Math.round(w * dpr);
-  canvas.width = canvas.height = size;
+  const ns = Math.round(w * dpr);
+  if (ns === size) return; // unchanged: keep what is drawn
+  size = ns;
+  canvas.width = canvas.height = rimCanvas.width = rimCanvas.height = size;
+  drawnLights = '';
   renderWheel(); draw();
 }
 function fitText(c, text, maxW) {
@@ -560,6 +568,7 @@ function fitText(c, text, maxW) {
 }
 function renderWheel() {
   if (!size) return;
+  discDirty = true;
   off.width = off.height = size;
   const c = octx, R = size / 2, r = R * 0.9, hubR = R * 0.1;
   c.clearRect(0, 0, size, size);
@@ -611,42 +620,48 @@ function updateNow() {
   nowIdx = i;
   $('#nowText').textContent = entries[i].text; $('#nowDot').style.background = entries[i].color;
 }
+// Per frame only the CSS rotation changes; canvases are repainted only when their content changes.
 function draw() {
   if (!size) return;
   updateNow();
+  canvas.style.transform = `rotate(${rot}rad)`;
+  if (discDirty || highlight !== drawnHL) { drawDisc(); discDirty = false; drawnHL = highlight; }
+  const lk = lightPhase + '|' + state.settings.lights;
+  if (lk !== drawnLights) { drawRim(); drawnLights = lk; }
+}
+function drawDisc() {
   const R = size / 2, r = R * 0.9;
   ctx.clearRect(0, 0, size, size);
-  // rim
-  ctx.save(); ctx.translate(R, R);
-  const rg = ctx.createLinearGradient(-R, -R, R, R);
-  rg.addColorStop(0, '#3a3d5c'); rg.addColorStop(1, '#1b1d2e');
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.995, 0, TAU); ctx.fillStyle = rg; ctx.fill();
-  ctx.restore();
-  // wheel
-  ctx.save(); ctx.translate(R, R); ctx.rotate(rot); ctx.drawImage(off, -R, -R); ctx.restore();
-  // highlight winning slice after spin
+  ctx.drawImage(off, 0, 0);
+  // highlight the winning slice after a spin (in wheel coordinates; the element is rotated by CSS)
   if (highlight >= 0 && slices[highlight]) {
     const s = slices[highlight];
-    ctx.save(); ctx.translate(R, R); ctx.rotate(rot);
+    ctx.save(); ctx.translate(R, R);
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, s.start, s.end); ctx.closePath();
     ctx.lineWidth = R * 0.018; ctx.strokeStyle = '#fff'; ctx.stroke();
-    ctx.restore();
-    ctx.save(); ctx.translate(R, R); ctx.rotate(rot);
     ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU);
-    ctx.moveTo(0,0); ctx.arc(0, 0, r, s.end, s.start, true); ctx.closePath();
+    ctx.moveTo(0, 0); ctx.arc(0, 0, r, s.end, s.start, true); ctx.closePath();
     ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill('evenodd');
     ctx.restore();
   }
-  // lights
+}
+function drawRim() {
+  const c = rctx, R = size / 2;
+  c.clearRect(0, 0, size, size);
+  c.save(); c.translate(R, R);
+  const rg = c.createLinearGradient(-R, -R, R, R);
+  rg.addColorStop(0, '#3a3d5c'); rg.addColorStop(1, '#1b1d2e');
+  c.beginPath(); c.arc(0, 0, R * 0.995, 0, TAU); c.fillStyle = rg; c.fill();
+  c.restore();
   const N = 24;
   for (let i = 0; i < N; i++) {
     const a = i / N * TAU - Math.PI / 2;
     const x = R + Math.cos(a) * R * 0.948, y = R + Math.sin(a) * R * 0.948;
     const on = state.settings.lights ? ((i + lightPhase) % 2 === 0) : true;
-    ctx.beginPath(); ctx.arc(x, y, R * 0.017, 0, TAU);
-    ctx.fillStyle = on ? '#fff6c4' : '#7a6b3a';
-    if (on) { ctx.shadowColor = '#ffe066'; ctx.shadowBlur = R * 0.03; }
-    ctx.fill(); ctx.shadowBlur = 0;
+    c.beginPath(); c.arc(x, y, R * 0.017, 0, TAU);
+    c.fillStyle = on ? '#fff6c4' : '#7a6b3a';
+    if (on) { c.shadowColor = '#ffe066'; c.shadowBlur = R * 0.03; }
+    c.fill(); c.shadowBlur = 0;
   }
 }
 
@@ -710,7 +725,7 @@ function spin(boost = 1) {
   if (!entries.length) { toast('กรุณาเพิ่มรายการก่อนหมุน'); return; }
   closeModal(true);
   audio(); // unlock audio within user gesture
-  spinning = true; highlight = -1;
+  spinning = true; highlight = -1; ta.readOnly = true;
   $('#hub').classList.add('busy');
   $('#resultLine').innerHTML = 'กำลังหมุน…';
   const win = pickWeighted();
@@ -739,7 +754,7 @@ function spin(boost = 1) {
 
 let lastWinner = null;
 function finish(i) {
-  spinning = false;
+  spinning = false; ta.readOnly = false;
   $('#hub').classList.remove('busy');
   const e = entries[i];
   lastWinner = { text: e.text, line: e.line, color: e.color };
@@ -818,7 +833,7 @@ function stepConfetti() {
 let drag = null;
 canvas.addEventListener('pointerdown', e => {
   if (spinning) return;
-  const b = canvas.getBoundingClientRect();
+  const b = wrapEl.getBoundingClientRect();
   const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
   const a = Math.atan2(e.clientY - cy, e.clientX - cx);
   drag = { cx, cy, a, startRot: rot, last: a, lastT: performance.now(), v: 0, moved: 0 };
@@ -828,7 +843,7 @@ const tip = $('#tip');
 canvas.addEventListener('pointermove', e => {
   if (!drag) {
     if (e.pointerType !== 'mouse' || spinning || !entries.length) { tip.hidden = true; return; }
-    const b = canvas.getBoundingClientRect(), x = e.clientX - b.left - b.width / 2, y = e.clientY - b.top - b.height / 2;
+    const b = wrapEl.getBoundingClientRect(), x = e.clientX - b.left - b.width / 2, y = e.clientY - b.top - b.height / 2;
     const d = Math.hypot(x, y) / (b.width / 2);
     if (d > 0.9 || d < 0.1) { tip.hidden = true; return; }
     const i = indexAtAngle(mod(Math.atan2(y, x) - rot, TAU));
@@ -1327,7 +1342,7 @@ $('#logoClear').onclick = () => { logo = null; if (!tempMode) store.del('pw.logo
 applyTheme(); updateSoundBtn(); renderPalettes(); applyLogo(); applyBg();
 ta.value = state.raw;
 parseEntries(); renderHistory();
-new ResizeObserver(resize).observe(canvas);
+new ResizeObserver(resize).observe(wrapEl);
 resize();
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { renderWheel(); draw(); });
 $('#tRestore').onclick = () => {
