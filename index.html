@@ -144,10 +144,20 @@ input[type=range]{width:140px;accent-color:var(--accent)}
 .switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
 .swatches{display:flex;gap:3px}
 .swatches i{width:14px;height:14px;border-radius:4px;display:block}
+.seg{display:flex;flex-wrap:wrap;gap:4px;padding:4px;border-radius:12px;background:var(--field);border:1px solid var(--border)}
+.seg button{flex:1;min-width:64px;border:none;background:transparent;border-radius:9px;padding:7px 6px;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.bg-panel{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px;border:1px dashed var(--border);border-radius:12px}
+.bg-panel.palettes{display:grid}
+.bg-panel[hidden]{display:none}
+.bg-field{display:flex;align-items:center;gap:6px;font-size:14px}
+.bg-field input[type=color]{width:44px;height:36px;padding:2px;border:1px solid var(--border);border-radius:10px;background:var(--field);cursor:pointer}
+.bg-prev{display:block;height:28px;border-radius:8px;border:1px solid var(--border)}
+body{background-attachment:fixed}
 .custom-pal{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--border);border-radius:12px}
 .cp-list{display:flex;flex-wrap:wrap;gap:8px}
 .cp{position:relative}
-.cp input[type=color],#sBg{width:44px;height:36px;padding:2px;border:1px solid var(--border);border-radius:10px;background:var(--field);cursor:pointer}
+.cp input[type=color]{width:44px;height:36px;padding:2px;border:1px solid var(--border);border-radius:10px;background:var(--field);cursor:pointer}
 .cp button{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;border:none;background:var(--danger);color:#fff;font-size:13px;line-height:20px;padding:0}
 .palettes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pal{border:2px solid var(--border);background:var(--field);border-radius:12px;padding:8px;text-align:left;display:flex;flex-direction:column;gap:6px;font-size:13px}
@@ -308,8 +318,27 @@ h3{margin:6px 0 0;font-size:15px}
           <div class="cp-list" id="cpList"></div>
           <button class="btn" id="cpAdd">＋ เพิ่มสี</button>
         </div>
-        <div class="row"><label for="sBg">สีพื้นหลัง<span class="sub">เปลี่ยนสีพื้นหลังของหน้า</span></label>
-          <span class="tools"><input type="color" id="sBg" value="#f3f4fa" aria-label="เลือกสีพื้นหลัง"><button class="btn" id="sBgReset">ค่าเริ่มต้น</button></span></div>
+        <h3>พื้นหลัง</h3>
+        <div class="seg" id="bgModes" role="group" aria-label="แบบพื้นหลัง">
+          <button data-m="">ค่าเริ่มต้น</button><button data-m="solid">สีเดียว</button><button data-m="gradient">ไล่สี</button><button data-m="preset">ธีม</button><button data-m="image">รูปภาพ</button>
+        </div>
+        <div class="bg-panel" id="bgSolid" hidden>
+          <label class="bg-field">สี <input type="color" id="sBg" value="#f3f4fa"></label>
+        </div>
+        <div class="bg-panel" id="bgGrad" hidden>
+          <label class="bg-field">สีที่ 1 <input type="color" id="sBgA" value="#6c5ce7"></label>
+          <label class="bg-field">สีที่ 2 <input type="color" id="sBgB" value="#00b894"></label>
+          <label class="bg-field">ทิศทาง
+            <select id="sBgDir"><option value="180">↓ บนลงล่าง</option><option value="135">↘ ทแยง</option><option value="90">→ ซ้ายไปขวา</option><option value="45">↗ ทแยงขึ้น</option><option value="radial">◎ วงกลม</option></select></label>
+        </div>
+        <div class="palettes bg-panel" id="bgPresets" hidden></div>
+        <div class="bg-panel" id="bgImg" hidden>
+          <div class="tools"><button class="btn" id="bgImgPick">🖼️ เลือกรูปพื้นหลัง</button><input type="file" id="bgImgFile" accept="image/*" hidden></div>
+          <label class="bg-field">ความมืดทับรูป <input type="range" id="sBgDim" min="0" max="0.8" step="0.05" value="0.35"></label>
+          <div class="small">รูปพื้นหลังใหญ่เกินกว่าจะใส่ในลิงก์แชร์ จึงเห็นเฉพาะเครื่องนี้ — ถ้าอยากให้คนอื่นเห็นด้วย ใช้แบบ "ไล่สี" หรือ "ธีม"</div>
+        </div>
+        <div class="row"><label for="sBgPat">ลวดลายทับพื้นหลัง</label>
+          <select id="sBgPat"><option value="">ไม่มี</option><option value="dots">จุด</option><option value="grid">ตาราง</option><option value="stripes">เส้นทแยง</option><option value="sparkle">ประกายดาว</option></select></div>
         <h3>โลโก้ตรงกลาง</h3>
         <div class="tools">
           <button class="btn" id="logoPick">🖼️ เลือกรูป</button>
@@ -411,7 +440,7 @@ const SAMPLE_ENTRIES = [
 ].join('\n');
 const DEFAULT_ENTRIES = SAMPLE_ENTRIES;
 const DEFAULT_TITLE = 'Panda EV Wheel';
-const DEFAULT_SETTINGS = { duration:6, autoRemove:false, popup:true, confetti:true, sound:true, lights:true, volume:0.6, palette:'vivid', customColors:null, bg:'' };
+const DEFAULT_SETTINGS = { duration:6, autoRemove:false, popup:true, confetti:true, sound:true, lights:true, volume:0.6, palette:'vivid', customColors:null, bg:'', bgMode:'', bg2:'', bgDir:'', bgPreset:'', bgPat:'', bgDim:0.35 };
 const isHex = v => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 
 let state = {
@@ -942,7 +971,7 @@ function renderPalettes() {
   const all = Object.entries(PALETTES).concat([['custom', { name: '✏️ กำหนดเอง', c: custom.length ? custom : ['#cccccc', '#999999', '#666666'] }]]);
   $('#palettes').innerHTML = all.map(([k, p]) =>
     `<button class="pal" data-k="${k}" aria-pressed="${S.palette === k}"><span>${p.name}</span><span class="swatches">${p.c.slice(0, 8).map(c => `<i style="background:${c}"></i>`).join('')}</span></button>`).join('');
-  document.querySelectorAll('.pal').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#palettes .pal').forEach(b => b.onclick = () => {
     if (b.dataset.k === 'custom' && !custom.length) S.customColors = currentPalette().slice(0, 8); // start from the colors in use
     S.palette = b.dataset.k; saveSettings(); renderPalettes(); repaint();
   });
@@ -974,23 +1003,99 @@ function hslHex(h, s, l) {
 }
 
 /* ---------- page background ---------- */
-function applyBg() {
-  const root = document.documentElement.style, bgIn = $('#sBg');
-  if (isHex(S.bg)) {
-    document.body.style.background = S.bg;
-    const dark = textColorFor(S.bg) === '#ffffff';
-    root.setProperty('--on-bg', dark ? '#ffffff' : '#1d2033');
-    root.setProperty('--on-bg-muted', dark ? 'rgba(255,255,255,.78)' : 'rgba(29,32,51,.7)');
-    bgIn.value = S.bg;
-  } else {
-    document.body.style.background = '';
-    root.removeProperty('--on-bg'); root.removeProperty('--on-bg-muted');
-    bgIn.value = '#f3f4fa';
+// every value below comes from settings that shared links can set, so only whitelisted values reach CSS
+const BG_PRESETS = {
+  lavender: { name: 'ม่วงพาสเทล', css: 'linear-gradient(135deg,#e0c3fc,#8ec5fc)', dark: false },
+  sunset:   { name: 'พระอาทิตย์ตก', css: 'linear-gradient(135deg,#ff9a8b,#ff6a88 55%,#ff99ac)', dark: false },
+  ocean:    { name: 'ทะเลลึก', css: 'linear-gradient(160deg,#0f2027,#203a43,#2c5364)', dark: true },
+  forest:   { name: 'ป่าเขียว', css: 'linear-gradient(135deg,#134e5e,#71b280)', dark: true },
+  night:    { name: 'ท้องฟ้ายามค่ำ', css: 'radial-gradient(ellipse at 30% 20%,#3a3d8f,#141530 70%)', dark: true },
+  gold:     { name: 'ทองหรู', css: 'linear-gradient(135deg,#1a1a1a,#3d3420 60%,#8a6d1d)', dark: true },
+  candy:    { name: 'ลูกกวาด', css: 'linear-gradient(135deg,#fbc2eb,#a6c1ee)', dark: false },
+  panda:    { name: 'แพนด้า EV', css: 'linear-gradient(135deg,#0b3d2e,#14532d 50%,#1f1f24)', dark: true },
+  mint:     { name: 'มิ้นท์สดชื่น', css: 'linear-gradient(135deg,#d4fc79,#96e6a1)', dark: false },
+  fire:     { name: 'เปลวไฟ', css: 'linear-gradient(135deg,#f12711,#f5af19)', dark: true }
+};
+const BG_DIRS = ['180', '135', '90', '45', 'radial'];
+let bgImage = store.get('pw.bgImg', null);
+const lum = hex => { const n = parseInt(hex.slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255; };
+function bgMode() { return S.bgMode || (isHex(S.bg) ? 'solid' : ''); }
+function buildBg() {
+  const m = bgMode();
+  let base = null, dark = null;
+  if (m === 'solid' && isHex(S.bg)) { base = `linear-gradient(${S.bg},${S.bg})`; dark = lum(S.bg) < 0.6; }
+  else if (m === 'gradient' && isHex(S.bg) && isHex(S.bg2)) {
+    const dir = BG_DIRS.includes(String(S.bgDir)) ? String(S.bgDir) : '135';
+    base = dir === 'radial' ? `radial-gradient(circle at 50% 40%,${S.bg},${S.bg2})` : `linear-gradient(${dir}deg,${S.bg},${S.bg2})`;
+    dark = (lum(S.bg) + lum(S.bg2)) / 2 < 0.6;
   }
+  else if (m === 'preset' && BG_PRESETS[S.bgPreset]) { base = BG_PRESETS[S.bgPreset].css; dark = BG_PRESETS[S.bgPreset].dark; }
+  else if (m === 'image' && bgImage) {
+    const d = Math.min(0.8, Math.max(0, +S.bgDim || 0));
+    base = `linear-gradient(rgba(0,0,0,${d}),rgba(0,0,0,${d})),url("${bgImage}") center/cover no-repeat`; dark = d >= 0.25;
+  }
+  const isDarkTheme = getComputedStyle(document.documentElement).getPropertyValue('color-scheme').includes('dark');
+  const ink = (dark ?? isDarkTheme) ? '255,255,255' : '0,0,0';
+  const PATS = {
+    dots: `radial-gradient(rgba(${ink},.16) 1.6px,transparent 1.8px) 0 0/22px 22px`,
+    grid: `linear-gradient(rgba(${ink},.09) 1px,transparent 1px) 0 0/28px 28px,linear-gradient(90deg,rgba(${ink},.09) 1px,transparent 1px) 0 0/28px 28px`,
+    stripes: `repeating-linear-gradient(45deg,rgba(${ink},.06) 0 12px,transparent 12px 24px)`,
+    sparkle: `radial-gradient(rgba(${ink},.5) 1px,transparent 1.5px) 0 0/70px 70px,radial-gradient(rgba(${ink},.3) 1.2px,transparent 1.6px) 35px 20px/90px 90px,radial-gradient(rgba(${ink},.22) 1px,transparent 1.4px) 10px 50px/55px 55px`
+  };
+  const pat = PATS[S.bgPat] || '';
+  return { css: [pat, base].filter(Boolean).join(',') || null, dark, pat: !!pat };
 }
+function applyBg() {
+  const root = document.documentElement.style, { css, dark, pat } = buildBg();
+  document.body.style.background = css ? css : '';
+  if (css && !bgMode() && pat) document.body.style.background = css + ',radial-gradient(1200px 700px at 30% 20%,var(--bg-2),var(--bg)) var(--bg)';
+  if (dark === null) { root.removeProperty('--on-bg'); root.removeProperty('--on-bg-muted'); }
+  else {
+    root.setProperty('--on-bg', dark ? '#ffffff' : '#1d2033');
+    root.setProperty('--on-bg-muted', dark ? 'rgba(255,255,255,.8)' : 'rgba(29,32,51,.72)');
+  }
+  // controls
+  const m = bgMode();
+  document.querySelectorAll('#bgModes button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
+  $('#bgSolid').hidden = m !== 'solid'; $('#bgGrad').hidden = m !== 'gradient'; $('#bgPresets').hidden = m !== 'preset'; $('#bgImg').hidden = m !== 'image';
+  if (isHex(S.bg)) { $('#sBg').value = S.bg; $('#sBgA').value = S.bg; }
+  if (isHex(S.bg2)) $('#sBgB').value = S.bg2;
+  $('#sBgDir').value = BG_DIRS.includes(String(S.bgDir)) ? String(S.bgDir) : '135';
+  $('#sBgPat').value = S.bgPat || ''; $('#sBgDim').value = S.bgDim ?? 0.35;
+  document.querySelectorAll('#bgPresets .pal').forEach(b => b.setAttribute('aria-pressed', m === 'preset' && b.dataset.k === S.bgPreset));
+}
+$('#bgPresets').innerHTML = Object.entries(BG_PRESETS).map(([k, p]) =>
+  `<button class="pal" data-k="${k}"><span>${p.name}</span><span class="bg-prev" style="background:${p.css}"></span></button>`).join('');
+document.querySelectorAll('#bgPresets .pal').forEach(b => b.onclick = () => { S.bgMode = 'preset'; S.bgPreset = b.dataset.k; applyBg(); saveSettings(); });
+document.querySelectorAll('#bgModes button').forEach(b => b.onclick = () => {
+  const m = b.dataset.m;
+  if (m === 'solid' && !isHex(S.bg)) S.bg = '#f3f4fa';
+  if (m === 'gradient') { if (!isHex(S.bg)) S.bg = '#6c5ce7'; if (!isHex(S.bg2)) S.bg2 = '#00b894'; }
+  if (m === 'preset' && !BG_PRESETS[S.bgPreset]) S.bgPreset = 'lavender';
+  if (m === 'image' && !bgImage) { $('#bgImgFile').click(); }
+  S.bgMode = m; applyBg(); saveSettings();
+});
 $('#sBg').oninput = () => { S.bg = $('#sBg').value; applyBg(); };
-$('#sBg').onchange = () => saveSettings();
-$('#sBgReset').onclick = () => { S.bg = ''; applyBg(); saveSettings(); };
+$('#sBgA').oninput = () => { S.bg = $('#sBgA').value; applyBg(); };
+$('#sBgB').oninput = () => { S.bg2 = $('#sBgB').value; applyBg(); };
+['#sBg', '#sBgA', '#sBgB', '#sBgDim'].forEach(id => $(id).onchange = () => saveSettings());
+$('#sBgDir').onchange = () => { S.bgDir = $('#sBgDir').value; applyBg(); saveSettings(); };
+$('#sBgPat').onchange = () => { S.bgPat = $('#sBgPat').value; applyBg(); saveSettings(); };
+$('#sBgDim').oninput = () => { S.bgDim = +$('#sBgDim').value; applyBg(); };
+$('#bgImgPick').onclick = () => $('#bgImgFile').click();
+$('#bgImgFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    // keep it light enough for browser storage
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    bgImage = c.toDataURL('image/jpeg', 0.82); store.set('pw.bgImg', bgImage);
+    S.bgMode = 'image'; applyBg(); saveSettings(); URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f); e.target.value = '';
+};
 
 const SOUND_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>';
 const SOUND_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6M17 9l6 6"/></svg>';
